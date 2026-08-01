@@ -1,0 +1,29 @@
+name: Seed database
+
+# One-click database seed (works around Render's free tier having no Shell).
+# Requires one repo secret: SEED_DATABASE_URL (your Neon connection string).
+# Optional secrets: SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD (else defaults are used).
+# Run it from the Actions tab → "Seed database" → Run workflow.
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.SEED_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SEED_DATABASE_URL }}
+      SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+      SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate --workspace @hc/server
+      - name: Ensure schema is applied (idempotent)
+        run: npm run db:migrate:deploy --workspace @hc/server
+      - name: Seed reference data + founder + sample team
+        run: npm run db:seed --workspace @hc/server
