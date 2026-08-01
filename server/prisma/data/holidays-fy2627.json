@@ -1,0 +1,29 @@
+{
+  "_comment": "Company Holiday Calendar FY 2026-27 transcribed verbatim from PRD v7 section 10. type = MANDATORY (company-wide off) or OPTIONAL (claimable, up to 2 per FY via leave flow). Each employee's birthday is an ADDITIONAL optional-holiday entitlement handled per-profile, not listed here. Sundays + 4th Saturday of each month = off; 2nd Saturday = WFH — these are computed, not seeded.",
+  "financial_year": "2026-27",
+  "holidays": [
+    { "date": "2026-04-03", "day": "Friday",    "name": "Good Friday",              "type": "OPTIONAL" },
+    { "date": "2026-05-01", "day": "Friday",    "name": "Maharashtra Day",          "type": "MANDATORY" },
+    { "date": "2026-05-28", "day": "Thursday",  "name": "Bakri ID",                 "type": "OPTIONAL" },
+    { "date": "2026-06-26", "day": "Friday",    "name": "Moharram",                 "type": "OPTIONAL" },
+    { "date": "2026-08-15", "day": "Saturday",  "name": "Independence Day",         "type": "MANDATORY" },
+    { "date": "2026-08-28", "day": "Friday",    "name": "Raksha Bandhan",           "type": "OPTIONAL" },
+    { "date": "2026-09-04", "day": "Friday",    "name": "Janmashtami",              "type": "OPTIONAL" },
+    { "date": "2026-09-14", "day": "Monday",    "name": "Ganesh Chaturthi",         "type": "MANDATORY" },
+    { "date": "2026-09-25", "day": "Friday",    "name": "Ganesh Visarjan",          "type": "OPTIONAL" },
+    { "date": "2026-10-02", "day": "Friday",    "name": "Mahatma Gandhi Jayanti",   "type": "MANDATORY" },
+    { "date": "2026-10-20", "day": "Tuesday",   "name": "Dussehra",                 "type": "OPTIONAL" },
+    { "date": "2026-11-09", "day": "Monday",    "name": "Diwali",                   "type": "MANDATORY" },
+    { "date": "2026-11-11", "day": "Wednesday", "name": "Bhai Duj",                 "type": "OPTIONAL" },
+    { "date": "2026-12-25", "day": "Friday",    "name": "Christmas",                "type": "OPTIONAL" },
+    { "date": "2027-01-01", "day": "Friday",    "name": "New Year",                 "type": "MANDATORY" },
+    { "date": "2027-01-15", "day": "Friday",    "name": "Makar Sankranti / Pongal", "type": "OPTIONAL" },
+    { "date": "2027-01-26", "day": "Tuesday",   "name": "Republic Day",             "type": "MANDATORY" },
+    { "date": "2027-02-19", "day": "Friday",    "name": "Shivaji Jayanti",          "type": "OPTIONAL" },
+    { "date": "2027-02-24", "day": "Wednesday", "name": "Mahaveer Jayanti",         "type": "OPTIONAL" },
+    { "date": "2027-03-10", "day": "Wednesday", "name": "Ramzan ID",                "type": "OPTIONAL" },
+    { "date": "2027-03-19", "day": "Friday",    "name": "Gudi Padwa",               "type": "OPTIONAL" },
+    { "date": "2027-03-22", "day": "Monday",    "name": "Holi",                     "type": "MANDATORY" },
+    { "date": "2027-03-26", "day": "Friday",    "name": "Good Friday",              "type": "OPTIONAL" }
+  ]
+}

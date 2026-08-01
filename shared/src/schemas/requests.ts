@@ -1,0 +1,137 @@
+import { z } from 'zod';
+import { email, geoPoint, isoDate, uuid } from './common.js';
+import {
+  ATTENDANCE_STATUSES,
+  EMPLOYMENT_TYPES,
+  LEAVE_TYPES,
+  MEME_EVENT_KEYS,
+  USER_ROLES,
+} from '../index.js';
+
+// ── Profiles ─────────────────────────────────────────────────────────────────
+export const createProfileSchema = z.object({
+  email,
+  password: z.string().min(8),
+  fullName: z.string().min(1),
+  employeeCode: z.string().min(1).optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPES),
+  joiningDate: isoDate,
+  dateOfBirth: isoDate.optional(),
+  designation: z.string().optional(),
+  department: z.string().optional(),
+  salaryAmount: z.number().nonnegative().optional(),
+  reportingManagerId: uuid.optional(),
+  role: z.enum(USER_ROLES).default('team_member'),
+});
+export const updateProfileSchema = createProfileSchema.partial().omit({ password: true });
+export const deleteProfileSchema = z.object({ confirmName: z.string().min(1) });
+
+// ── Tasks ────────────────────────────────────────────────────────────────────
+export const createTaskSchema = z.object({
+  title: z.string().min(1),
+  campaignId: uuid.nullable().optional(),
+  estimatedMinutes: z.number().int().positive(),
+  workDate: isoDate.optional(),
+  ownerId: uuid.optional(), // admin on-behalf
+});
+export const updateTaskSchema = z.object({
+  title: z.string().min(1).optional(),
+  campaignId: uuid.nullable().optional(),
+  estimatedMinutes: z.number().int().positive().optional(),
+});
+export const completeTaskSchema = z.object({
+  // admin may supply a completion time on behalf; otherwise server uses now
+  completedAt: z.string().datetime().optional(),
+});
+
+// ── Campaigns ────────────────────────────────────────────────────────────────
+export const createCampaignSchema = z.object({
+  name: z.string().min(1),
+  clientName: z.string().optional(),
+  leadId: uuid,
+  deadline: isoDate,
+  color: z.string().optional(),
+  memberIds: z.array(uuid).default([]),
+});
+export const updateCampaignSchema = z.object({
+  name: z.string().min(1).optional(),
+  clientName: z.string().optional(),
+  leadId: uuid.optional(),
+  deadline: isoDate.optional(),
+  color: z.string().optional(),
+});
+export const addMemberSchema = z.object({ userId: uuid });
+
+// ── Attendance ───────────────────────────────────────────────────────────────
+export const checkInSchema = geoPoint;
+export const overrideAttendanceSchema = z.object({
+  status: z.enum(ATTENDANCE_STATUSES),
+  isLate: z.boolean().optional(),
+  note: z.string().optional(),
+});
+
+// ── Leave ────────────────────────────────────────────────────────────────────
+export const createLeaveSchema = z
+  .object({
+    leaveType: z.enum(LEAVE_TYPES),
+    startDate: isoDate,
+    endDate: isoDate,
+    isHalfDay: z.boolean().default(false),
+    reason: z.string().min(1),
+    allowAdvance: z.boolean().default(false),
+  })
+  .refine((v) => v.endDate >= v.startDate, { message: 'endDate must be on/after startDate', path: ['endDate'] });
+export const decideRequestSchema = z.object({ note: z.string().optional() });
+export const manualLeaveSchema = z.object({
+  userId: uuid,
+  leaveType: z.enum(LEAVE_TYPES),
+  startDate: isoDate,
+  endDate: isoDate,
+  isHalfDay: z.boolean().default(false),
+  reason: z.string().min(1),
+});
+export const adjustLeaveSchema = z.object({
+  userId: uuid,
+  amount: z.number(),
+  note: z.string().min(1),
+});
+
+// ── Comp-off ─────────────────────────────────────────────────────────────────
+export const createCompOffRequestSchema = z.object({
+  offDate: isoDate,
+  campaignId: uuid.nullable().optional(),
+  plannedWork: z.string().min(1),
+  reason: z.string().min(1),
+});
+export const creditCompOffSchema = z.object({
+  userId: uuid,
+  creditedForDate: isoDate,
+  compOffRequestId: uuid.optional(),
+  note: z.string().optional(),
+});
+
+// ── Holidays & remarks ───────────────────────────────────────────────────────
+export const createHolidaySchema = z.object({
+  day: isoDate,
+  name: z.string().min(1),
+  type: z.enum(['mandatory_holiday', 'optional_holiday']),
+});
+export const updateHolidaySchema = createHolidaySchema.partial();
+export const createRemarkSchema = z.object({
+  userId: uuid,
+  day: isoDate,
+  text: z.string().min(1),
+});
+export const updateRemarkSchema = z.object({ text: z.string().min(1) });
+
+// ── Admin ────────────────────────────────────────────────────────────────────
+export const adminToggleSchema = z.object({ isAdmin: z.boolean() });
+export const setRoleSchema = z.object({ role: z.enum(USER_ROLES) });
+export const setActiveSchema = z.object({ isActive: z.boolean() });
+
+// ── Meme ─────────────────────────────────────────────────────────────────────
+export const memeQuerySchema = z.object({ event: z.enum(MEME_EVENT_KEYS) });
+
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type CreateLeaveInput = z.infer<typeof createLeaveSchema>;
+export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
