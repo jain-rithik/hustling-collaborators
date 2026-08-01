@@ -1,0 +1,21 @@
+# Local Postgres for development. `docker compose up -d`, then point server/.env
+# DATABASE_URL/DIRECT_URL at postgresql://postgres:postgres@localhost:5432/hc
+services:
+  db:
+    image: postgres:16
+    container_name: hc-postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hc
+    ports:
+      - '5432:5432'
+    volumes:
+      - hc-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hc-db:
