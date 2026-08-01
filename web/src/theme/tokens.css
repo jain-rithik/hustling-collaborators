@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── PRD §6.2 palette + §6.3 type scale, single-sourced ────────────────────── */
+:root {
+  --bg-deep-space: #0f0e17;
+  --surface-dark-lifted: #1c1a2e;
+  --primary-electric-purple: #7b61ff;
+  --campaign-hot-coral: #ff6b6b;
+  --campaign-teal-mint: #00d4aa;
+  --campaign-sunny-yellow: #ffd60a;
+  --campaign-soft-lavender: #c4b5fd;
+  --text-near-white: #f0eff8;
+  --text-muted-lavender: #9896a8;
+
+  --radius-card: 18px;
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg-deep-space);
+    color: var(--text-near-white);
+    font-family: '"DM Sans"', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'ss01';
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: '"Plus Jakarta Sans"', system-ui, sans-serif;
+  }
+  /* Never punitive: keep focus rings visible for a11y on the dark theme (PRD §7). */
+  :focus-visible {
+    outline: 2px solid var(--primary-electric-purple);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  ::selection {
+    background: rgba(123, 97, 255, 0.35);
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[18px] bg-surface p-4 shadow-card;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-medium;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] font-semibold transition active:scale-[0.98] disabled:opacity-50;
+    font-family: '"Plus Jakarta Sans"', system-ui, sans-serif;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-white;
+  }
+  .btn-ghost {
+    @apply btn bg-white/5 text-ink hover:bg-white/10;
+  }
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-ink placeholder:text-muted focus:border-primary;
+  }
+  .label {
+    @apply mb-1 block text-[13px] font-medium text-muted;
+  }
+}
+
+/* Respect reduced-motion (PRD §7 / accessibility). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Safe-area padding for the installed PWA. */
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
