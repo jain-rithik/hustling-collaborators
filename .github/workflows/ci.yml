@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+jobs:
+  build-test:
+    name: typecheck · lint · unit · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace @hc/server
+      - name: Typecheck (all workspaces)
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Domain unit tests (100% coverage gate)
+        run: npm run test:coverage --workspace @hc/server
+      - name: Web component tests
+        run: npm run test --workspace @hc/web
+      - name: Web production build
+        run: npm run build --workspace @hc/web
+
+  api-tests:
+    name: API integration (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hc_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/hc_test
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef
+      REFRESH_SECRET: ci-refresh-secret-0123456789abcdef
+      JOB_SECRET: ci-job-secret
+      NODE_ENV: test
+      TZ: UTC
+      RUN_API_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate --workspace @hc/server
+      - name: Apply migrations
+        run: npm run db:migrate:deploy --workspace @hc/server
+      - name: Run domain + API integration tests
+        run: npm run test --workspace @hc/server

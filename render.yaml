@@ -1,0 +1,28 @@
+# Render blueprint for the API (free tier). Create the DB on Neon first, then set
+# DATABASE_URL / DIRECT_URL / CORS_ORIGIN in the Render dashboard (marked sync:false).
+services:
+  - type: web
+    name: hc-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run db:generate --workspace @hc/server && npm run build --workspace @hc/server
+    startCommand: npm run db:migrate:deploy --workspace @hc/server && npm run start --workspace @hc/server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: UTC
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_SECRET
+        generateValue: true
+      - key: JOB_SECRET
+        generateValue: true
