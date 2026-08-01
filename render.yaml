@@ -6,7 +6,9 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm ci && npm run db:generate --workspace @hc/server && npm run build --workspace @hc/server
+    # --include=dev is required because NODE_ENV=production makes npm skip devDependencies,
+    # but the build needs tsup/typescript and the start step needs the prisma CLI.
+    buildCommand: npm ci --include=dev && npm run db:generate --workspace @hc/server && npm run build --workspace @hc/server
     startCommand: npm run db:migrate:deploy --workspace @hc/server && npm run start --workspace @hc/server
     healthCheckPath: /health
     envVars:
