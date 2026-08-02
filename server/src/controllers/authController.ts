@@ -11,7 +11,9 @@ function setRefreshCookie(res: Response, token: string) {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    // Web (vercel.app) and API (onrender.com) are cross-site, so the refresh cookie
+    // must be SameSite=None; Secure in production. 'lax' keeps localhost dev working.
+    sameSite: isProd ? 'none' : 'lax',
     path: REFRESH_PATH,
     maxAge: REFRESH_TOKEN_TTL_DAYS * 86_400_000,
   });
