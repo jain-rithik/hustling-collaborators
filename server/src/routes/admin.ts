@@ -41,6 +41,14 @@ adminRouter.patch(
 );
 
 adminRouter.get(
+  '/daily-overview',
+  asyncHandler(async (req, res) => {
+    const date = (req.query.date as string | undefined) ?? istToday();
+    res.json(await adminService.dailyOverview(date));
+  }),
+);
+
+adminRouter.get(
   '/late-report',
   asyncHandler(async (req, res) => {
     const month = (req.query.month as string | undefined) ?? istToday().slice(0, 7);

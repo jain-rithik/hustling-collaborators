@@ -96,6 +96,7 @@ enum NotificationType {
   leave_request
   leave_decided
   task_assigned
+  all_tasks_done
   admin_note
 }
 
@@ -235,10 +236,13 @@ model Task {
   estimatedMinutes Int        @map("estimated_minutes")
   status           TaskStatus @default(todo)
   workDate         DateTime   @map("work_date") @db.Date
+  plannedStartTime String?    @map("planned_start_time") // HH:mm scheduling aid
+  plannedEndTime   String?    @map("planned_end_time") // HH:mm scheduling aid
   startedAt        DateTime?  @map("started_at") @db.Timestamptz(6)
   completedAt      DateTime?  @map("completed_at") @db.Timestamptz(6)
   actualMinutes    Int?       @map("actual_minutes")
   withinEstimate   Boolean?   @map("within_estimate")
+  delayReason      String?    @map("delay_reason") // why a task ran past its estimate
   createdBy        String?    @map("created_by") @db.Uuid
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -316,6 +320,8 @@ model LeaveRequest {
   startDate     DateTime      @map("start_date") @db.Date
   endDate       DateTime      @map("end_date") @db.Date
   isHalfDay     Boolean       @default(false) @map("is_half_day")
+  halfDayArrival String?      @map("half_day_arrival") // HH:mm — hours worked around a half-day
+  halfDayLeave   String?      @map("half_day_leave") // HH:mm
   requestedDays Decimal       @map("requested_days") @db.Decimal(5, 2)
   reason        String
   status        RequestStatus @default(pending)

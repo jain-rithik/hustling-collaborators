@@ -54,6 +54,26 @@ export const LEAVE_TYPES = [
 ] as const;
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
+/**
+ * The leave types a member may pick when raising their own request. Maternity/paternity are
+ * recorded by an admin (not self-served), and half-days are captured via the `isHalfDay` flag
+ * rather than as a leave type — so neither appears in the self-service selector.
+ */
+export const SELECTABLE_LEAVE_TYPES = ['pl', 'lwp', 'comp_off', 'bereavement', 'optional_holiday'] as const;
+export type SelectableLeaveType = (typeof SELECTABLE_LEAVE_TYPES)[number];
+
+/** Human-friendly display labels for each leave type (UI never shows the raw enum key). */
+export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+  pl: 'Paid Leave',
+  lwp: 'Leave Without Pay',
+  comp_off: 'Comp-off',
+  half_day: 'Half Day',
+  bereavement: 'Bereavement',
+  maternity: 'Maternity',
+  paternity: 'Paternity',
+  optional_holiday: 'Optional Holiday',
+};
+
 /** Approval lifecycle for leave / comp-off requests (PRD §9.4 / §9.8). */
 export const REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
@@ -85,6 +105,7 @@ export const NOTIFICATION_TYPES = [
   'leave_request',
   'leave_decided',
   'task_assigned',
+  'all_tasks_done',
   'admin_note',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

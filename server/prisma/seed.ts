@@ -139,19 +139,14 @@ async function seedHolidays() {
 
 async function seedMemeBank() {
   const bank = readData<Record<string, string[]>>('meme-bank.json');
-  let count = 0;
-  for (const [eventKey, lines] of Object.entries(bank)) {
-    if (eventKey.startsWith('_')) continue;
-    for (const text of lines) {
-      await prisma.memeLine.upsert({
-        where: { eventKey_text: { eventKey, text } },
-        update: { isActive: true },
-        create: { eventKey, text, isActive: true },
-      });
-      count++;
-    }
-  }
-  console.log(`  ✓ Meme bank: ${count} lines`);
+  const rows = Object.entries(bank)
+    .filter(([eventKey]) => !eventKey.startsWith('_'))
+    .flatMap(([eventKey, lines]) => lines.map((text) => ({ eventKey, text, isActive: true })));
+  // Replace the entire bank so an updated file never leaves stale lines behind
+  // (re-running the seed refreshes copy in place). meme_lines has no dependents.
+  await prisma.memeLine.deleteMany({});
+  await prisma.memeLine.createMany({ data: rows });
+  console.log(`  ✓ Meme bank: ${rows.length} lines`);
 }
 
 // ─────────────────────────────── People ─────────────────────────────────────

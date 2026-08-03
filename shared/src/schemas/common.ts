@@ -19,6 +19,11 @@ export const isoDate = z
 /** A month key, YYYY-MM (used for calendar + leaderboard queries). */
 export const yearMonth = z.string().regex(/^\d{4}-\d{2}$/, 'expected YYYY-MM');
 
+/** A 24-hour clock time, wire format HH:mm (e.g. planned task window, half-day arrival/leave). */
+export const clockTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'expected a time in HH:mm form');
+
 /** A new-password field (login uses a laxer `.min(1)` so we never leak the policy on login). */
 export const password = z.string().min(MIN_PASSWORD_LENGTH, `min ${MIN_PASSWORD_LENGTH} characters`);
 

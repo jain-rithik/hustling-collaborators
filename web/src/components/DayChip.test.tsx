@@ -21,4 +21,17 @@ describe('DayChip', () => {
     const { container } = render(<DayChip d={day({ remark: 'WFH approved' })} isToday={false} />);
     expect(container.querySelector('[title="WFH approved"]')).not.toBeNull();
   });
+
+  it('marks a holiday with a label and its name in the title', () => {
+    const { container } = render(
+      <DayChip d={day({ status: null, dayType: 'mandatory_holiday', holidayName: 'Diwali' })} isToday={false} />,
+    );
+    expect(screen.getByText(/holiday/i)).toBeInTheDocument();
+    expect(container.querySelector('[title="Diwali"]')).not.toBeNull();
+  });
+
+  it('labels an approved leave day', () => {
+    render(<DayChip d={day({ status: 'on_leave', dayType: 'office' })} isToday={false} />);
+    expect(screen.getByText(/leave/i)).toBeInTheDocument();
+  });
 });

@@ -2,6 +2,8 @@ import { DateTime } from 'luxon';
 import { IST_TZ, type UserRole } from '@hc/shared';
 import { prisma } from '../lib/prisma.js';
 import { conflict, notFound } from '../lib/errors.js';
+import { isoToDbDate } from '../lib/dates.js';
+import { taskTimeliness } from '../domain/index.js';
 
 export const adminService = {
   async listUsers() {
@@ -46,6 +48,65 @@ export const adminService = {
     if (!isActive && user.isFounder) throw conflict('The founder account cannot be disabled');
     await prisma.user.update({ where: { id }, data: { isActive } });
     return { id, isActive };
+  },
+
+  /**
+   * Founder/admin day view: for a single date, everyone's arrival time + late flag + status and
+   * their tasks with live timing. Lets leadership see, at a glance, who is in and what's moving.
+   */
+  async dailyOverview(date: string) {
+    const day = isoToDbDate(date);
+    const users = await prisma.user.findMany({
+      where: { isActive: true, profile: { isNot: null } },
+      include: { profile: { select: { fullName: true, employeeCode: true } } },
+      orderBy: { profile: { fullName: 'asc' } },
+    });
+    const userIds = users.map((u) => u.id);
+    const [attendance, tasks] = await Promise.all([
+      prisma.attendanceDay.findMany({ where: { userId: { in: userIds }, day } }),
+      prisma.task.findMany({ where: { ownerId: { in: userIds }, workDate: day }, orderBy: { createdAt: 'asc' } }),
+    ]);
+    const attByUser = new Map(attendance.map((a) => [a.userId, a]));
+    const tasksByUser = new Map<string, typeof tasks>();
+    for (const t of tasks) {
+      const list = tasksByUser.get(t.ownerId) ?? [];
+      list.push(t);
+      tasksByUser.set(t.ownerId, list);
+    }
+
+    return {
+      date,
+      people: users.map((u) => {
+        const att = attByUser.get(u.id);
+        const list = tasksByUser.get(u.id) ?? [];
+        const done = list.filter((t) => t.status === 'done');
+        return {
+          userId: u.id,
+          name: u.profile?.fullName ?? u.email,
+          checkInAt: att?.checkInAt?.toISOString() ?? null,
+          checkOutAt: att?.checkOutAt?.toISOString() ?? null,
+          status: att?.status ?? null,
+          isLate: att?.isLate ?? false,
+          taskCount: list.length,
+          doneCount: done.length,
+          allDone: list.length > 0 && done.length === list.length,
+          tasks: list.map((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            estimatedMinutes: t.estimatedMinutes,
+            actualMinutes: t.actualMinutes,
+            plannedStartTime: t.plannedStartTime,
+            plannedEndTime: t.plannedEndTime,
+            delayReason: t.delayReason,
+            timeliness:
+              t.status === 'done' && t.actualMinutes != null
+                ? taskTimeliness(t.actualMinutes, t.estimatedMinutes)
+                : null,
+          })),
+        };
+      }),
+    };
   },
 
   /** Late-arrival counts per user for a month — surfaced to Admin/Manager, no auto-action (PRD §9.2). */

@@ -35,6 +35,8 @@ export const attendanceService = {
       isWfhDay: dayType === 'second_saturday',
       checkedIn: !!record?.checkInAt,
       checkedOut: !!record?.checkOutAt,
+      checkInAt: record?.checkInAt?.toISOString() ?? null,
+      checkOutAt: record?.checkOutAt?.toISOString() ?? null,
       status: record?.status ?? null,
       isLate: record?.isLate ?? false,
       wfhConfirmed: record?.wfhConfirmed ?? false,
@@ -47,7 +49,7 @@ export const attendanceService = {
     const holidays = await getHolidayRefs();
     const dayType = resolveDayType(day, { holidays, dob });
     if (!OFFICE_LIKE.includes(dayType)) {
-      throw badRequest('Aaj office check-in ki zaroorat nahi — it is an off/WFH day 🙂');
+      throw badRequest('No office check-in needed today — it is an off or work-from-home day.');
     }
     const now = systemClock.now();
     const { isLate } = classifyCheckIn(now);
@@ -99,7 +101,7 @@ export const attendanceService = {
     const holidays = await getHolidayRefs();
     const dayType = resolveDayType(day, { holidays, dob });
     if (dayType !== 'second_saturday') {
-      throw badRequest('WFH toggle sirf 2nd Saturday ko available hai 🏠');
+      throw badRequest('The work-from-home option is only available on the 2nd Saturday of the month.');
     }
     const now = systemClock.now();
     const record = await prisma.attendanceDay.upsert({
@@ -124,7 +126,7 @@ export const attendanceService = {
     const from = isoToDbDate(`${ym}-01`);
     const to = isoToDbDate(start.plus({ months: 1 }).toISODate()!);
 
-    const [holidays, dob, records, remarks, leaves] = await Promise.all([
+    const [holidays, dob, records, remarks, leaves, holidayRows] = await Promise.all([
       getHolidayRefs(),
       dobOf(userId),
       prisma.attendanceDay.findMany({ where: { userId, day: { gte: from, lt: to } } }),
@@ -132,9 +134,11 @@ export const attendanceService = {
       prisma.leaveRequest.findMany({
         where: { userId, status: 'approved', startDate: { lt: to }, endDate: { gte: from } },
       }),
+      prisma.holiday.findMany({ where: { day: { gte: from, lt: to } }, select: { day: true, name: true } }),
     ]);
     const recByDay = new Map(records.map((r) => [dbDateToIso(r.day), r]));
     const remarkByDay = new Map(remarks.map((r) => [dbDateToIso(r.day), r.text]));
+    const holidayNameByDay = new Map(holidayRows.map((h) => [dbDateToIso(h.day), h.name]));
     const leaveDays = new Map<string, boolean>();
     for (const lv of leaves) {
       let d = DateTime.fromJSDate(lv.startDate, { zone: IST_TZ });
@@ -164,6 +168,8 @@ export const attendanceService = {
         status, // null = upcoming
         isLate: record?.isLate ?? false,
         checkInAt: record?.checkInAt?.toISOString() ?? null,
+        checkOutAt: record?.checkOutAt?.toISOString() ?? null,
+        holidayName: holidayNameByDay.get(iso) ?? null,
         remark: remarkByDay.get(iso) ?? null,
       });
     }

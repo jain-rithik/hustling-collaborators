@@ -23,11 +23,19 @@ export function Leaderboard() {
   const top3 = board.slice(0, 3);
   const rest = board.slice(3);
 
+  // The podium and list show the finishing POSITION (1st, 2nd, 3rd …) from the sorted board,
+  // so tied scores still read as distinct places rather than everyone sharing "1".
+  const ordinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
   return (
     <div className="flex flex-col gap-5 pt-1">
       <div className="flex flex-col items-center gap-2">
         <Logo height={22} />
-        <h1 className="font-display text-xl font-extrabold text-ink">This month's board 🏆</h1>
+        <h1 className="font-display text-xl font-extrabold text-ink">This month's leaderboard</h1>
       </div>
 
       {q.isLoading ? (
@@ -38,7 +46,8 @@ export function Leaderboard() {
             {[1, 0, 2].map((idx) => {
               const r = top3[idx];
               if (!r) return <div key={idx} />;
-              const isFirst = idx === 0;
+              const place = idx + 1; // podium slot: centre = 1st, left = 2nd, right = 3rd
+              const isFirst = place === 1;
               return (
                 <div
                   key={r.userId}
@@ -46,9 +55,9 @@ export function Leaderboard() {
                     isFirst ? 'bg-sunny/15 pb-5' : 'bg-surface'
                   } ${r.userId === me.id ? 'ring-1 ring-primary' : ''}`}
                 >
-                  <span className="text-lg">{isFirst ? '👑' : idx === 1 ? '🥈' : '🥉'}</span>
-                  <span className={`font-display font-extrabold leading-none ${isFirst ? 'text-[48px] text-sunny' : 'text-[34px] text-ink'}`}>
-                    {r.rank}
+                  <span className="text-lg">{place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉'}</span>
+                  <span className={`font-display font-extrabold leading-none ${isFirst ? 'text-[40px] text-sunny' : 'text-[30px] text-ink'}`}>
+                    {ordinal(place)}
                   </span>
                   <span className="max-w-full truncate text-[12px] text-muted">{r.name.split(' ')[0]}</span>
                   <span className="font-display text-sm font-bold text-ink">{r.score}<span className="text-muted">/100</span></span>
@@ -59,9 +68,9 @@ export function Leaderboard() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {rest.map((r) => (
+            {rest.map((r, i) => (
               <Card key={r.userId} className={`flex items-center gap-3 !p-3 ${r.userId === me.id ? 'ring-1 ring-primary' : ''}`}>
-                <span className="w-6 font-display text-lg font-bold text-muted">{r.rank}</span>
+                <span className="w-8 font-display text-base font-bold text-muted">{ordinal(i + 4)}</span>
                 <div className="flex-1">
                   <p className="font-display font-semibold text-ink">{r.name}</p>
                   {r.streak > 1 && <p className="text-[11px] text-mint">🔥 {r.streak}-month streak</p>}
@@ -72,7 +81,7 @@ export function Leaderboard() {
             ))}
           </div>
           <p className="text-center text-[12px] text-muted/70">
-            Three things, equally weighted: showing up on time, hitting your estimates, delivering campaigns. 💪
+            Three factors, equally weighted: on-time attendance, hitting your estimates, and delivering campaigns.
           </p>
         </>
       )}

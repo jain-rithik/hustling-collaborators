@@ -1,12 +1,12 @@
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LEAVE_TYPES, type LeaveType } from '@hc/shared';
+import { LEAVE_TYPE_LABELS, type LeaveType, SELECTABLE_LEAVE_TYPES } from '@hc/shared';
 import { api } from '@/lib/api';
 import { Button, Card, EmptyState, Pill, Section, Spinner } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { IconChevronLeft, IconPlus } from '@/components/Icons';
-import { fmtDate } from '@/lib/format';
+import { fmtClock, fmtDate } from '@/lib/format';
 
 interface LeaveRequest {
   id: string;
@@ -14,6 +14,8 @@ interface LeaveRequest {
   startDate: string;
   endDate: string;
   isHalfDay: boolean;
+  halfDayArrival: string | null;
+  halfDayLeave: string | null;
   requestedDays: number;
   reason: string;
   status: string;
@@ -53,18 +55,23 @@ export function Leave() {
         {q.isLoading ? (
           <Spinner />
         ) : (q.data?.requests.length ?? 0) === 0 ? (
-          <EmptyState emoji="🏖️" title="No leave yet" hint="Need a break? Request one — you've earned it." />
+          <EmptyState emoji="🗓️" title="No leave requests yet" hint="When you need time off, raise a request here and track its status." />
         ) : (
           <div className="flex flex-col gap-2">
             {q.data!.requests.map((r) => (
               <Card key={r.id} className="flex items-center justify-between !p-3">
                 <div>
                   <p className="font-display font-semibold text-ink">
-                    {r.leaveType.replaceAll('_', ' ')} · {r.requestedDays}d
+                    {LEAVE_TYPE_LABELS[r.leaveType]} · {r.isHalfDay ? 'Half day' : `${r.requestedDays}d`}
                   </p>
                   <p className="text-[12px] text-muted">
                     {fmtDate(r.startDate)}
-                    {r.startDate !== r.endDate ? ` → ${fmtDate(r.endDate)}` : ''} · {r.reason}
+                    {r.startDate !== r.endDate ? ` → ${fmtDate(r.endDate)}` : ''}
+                    {r.isHalfDay && r.halfDayArrival && r.halfDayLeave
+                      ? ` · in ${fmtClock(r.halfDayArrival)}, out ${fmtClock(r.halfDayLeave)}`
+                      : ''}
+                    {' · '}
+                    {r.reason}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -91,12 +98,22 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isHalfDay, setIsHalfDay] = useState(false);
+  const [halfDayArrival, setHalfDayArrival] = useState('10:00');
+  const [halfDayLeave, setHalfDayLeave] = useState('14:00');
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
 
   const create = useMutation({
     mutationFn: () =>
-      api.post('/leave/requests', { leaveType, startDate, endDate: isHalfDay ? startDate : endDate || startDate, isHalfDay, reason }),
+      api.post('/leave/requests', {
+        leaveType,
+        startDate,
+        endDate: isHalfDay ? startDate : endDate || startDate,
+        isHalfDay,
+        halfDayArrival: isHalfDay ? halfDayArrival : undefined,
+        halfDayLeave: isHalfDay ? halfDayLeave : undefined,
+        reason,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['leave'] });
       onClose();
@@ -108,6 +125,7 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
     e.preventDefault();
     setErr('');
     if (startDate && reason) create.mutate();
+    else setErr('Please choose a date and add a reason.');
   }
 
   return (
@@ -116,9 +134,9 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
         <div>
           <label className="label">Type</label>
           <select className="input" value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveType)}>
-            {LEAVE_TYPES.map((t) => (
+            {SELECTABLE_LEAVE_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t.replaceAll('_', ' ')}
+                {LEAVE_TYPE_LABELS[t]}
               </option>
             ))}
           </select>
@@ -126,21 +144,38 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
         <label className="flex items-center gap-2 text-sm text-muted">
           <input type="checkbox" checked={isHalfDay} onChange={(e) => setIsHalfDay(e.target.checked)} /> Half day
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="label">From</label>
-            <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          {!isHalfDay && (
+        {isHalfDay ? (
+          <>
+            <div>
+              <label className="label">Date</label>
+              <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label">Arrival time</label>
+                <input className="input" type="time" value={halfDayArrival} onChange={(e) => setHalfDayArrival(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Leaving time</label>
+                <input className="input" type="time" value={halfDayLeave} onChange={(e) => setHalfDayLeave(e.target.value)} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">From</label>
+              <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
             <div>
               <label className="label">To</label>
               <input className="input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-          )}
-        </div>
+          </div>
+        )}
         <div>
           <label className="label">Reason</label>
-          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ghar pe function hai" />
+          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Eg. Family Function" />
         </div>
         {err && <p className="text-sm text-coral">{err}</p>}
         <Button type="submit" disabled={create.isPending}>

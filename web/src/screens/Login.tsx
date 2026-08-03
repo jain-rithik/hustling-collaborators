@@ -21,7 +21,7 @@ export function Login() {
       await login(email, password);
       navigate('/');
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Login failed — try again 🙏');
+      setErr(e instanceof ApiError ? e.message : 'Sign-in failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -31,8 +31,8 @@ export function Login() {
     <div className="flex min-h-full flex-col items-center justify-center gap-7 px-6">
       <Logo height={46} />
       <div className="text-center">
-        <h1 className="font-display text-2xl font-extrabold text-ink">Hey Hustler 👋</h1>
-        <p className="text-muted">Let's get to work</p>
+        <h1 className="font-display text-2xl font-extrabold text-ink">Welcome back</h1>
+        <p className="text-muted">Sign in to continue</p>
       </div>
       <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-3">
         <div>
@@ -66,7 +66,7 @@ export function Login() {
         </div>
         {err && <p className="text-sm text-coral">{err}</p>}
         <Button type="submit" disabled={busy} className="mt-1">
-          {busy ? 'Signing in…' : "Let's go 🚀"}
+          {busy ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
       <p className="max-w-xs text-center text-[12px] text-muted/70">

@@ -50,17 +50,19 @@ export function CampaignDetail() {
               <Pill tone={campaignAccent[c.state as DeadlineState]}>{campaignLabel[c.state as DeadlineState]}</Pill>
             </div>
             <div className="flex items-center gap-3 text-[13px] text-muted">
-              <span>🎯 {fmtDate(c.deadline)}</span>
-              <span>👥 {c.memberCount} members</span>
+              <span>Due {fmtDate(c.deadline)}</span>
+              <span>
+                {c.memberCount} member{c.memberCount === 1 ? '' : 's'}
+              </span>
             </div>
             {canDeliver && (
               <Button variant="mint" className="mt-2" disabled={deliver.isPending} onClick={() => deliver.mutate()}>
-                {deliver.isPending ? 'Shipping…' : 'Mark delivered 🚀'}
+                {deliver.isPending ? 'Saving…' : 'Mark delivered'}
               </Button>
             )}
           </Card>
 
-          <h2 className="font-display text-lg font-bold text-ink">Team task flow</h2>
+          <h2 className="font-display text-lg font-bold text-ink">Team tasks</h2>
           {(tQ.data?.tasks.length ?? 0) === 0 ? (
             <Card className="text-sm text-muted">No tasks tagged to this campaign yet.</Card>
           ) : (
@@ -69,7 +71,7 @@ export function CampaignDetail() {
                 <Card key={t.id} className="flex items-center justify-between !p-3">
                   <span className={`text-sm ${t.status === 'done' ? 'text-muted line-through' : 'text-ink'}`}>{t.title}</span>
                   <Pill tone={t.status === 'done' ? 'mint' : t.status === 'active' ? 'primary' : 'default'}>
-                    {t.status === 'done' ? 'nailed it' : t.status === 'active' ? 'on it 🔥' : 'todo'}
+                    {t.status === 'done' ? 'Done' : t.status === 'active' ? 'In progress' : 'To do'}
                   </Pill>
                 </Card>
               ))}

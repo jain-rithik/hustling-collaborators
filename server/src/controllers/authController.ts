@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { changePasswordSchema, loginSchema, REFRESH_TOKEN_TTL_DAYS } from '@hc/shared';
+import { changePasswordSchema, loginSchema, REFRESH_TOKEN_TTL_DAYS, verifyPasswordSchema } from '@hc/shared';
 import { asyncHandler } from '../lib/http.js';
 import { isProd } from '../config/env.js';
 import { authService } from '../services/authService.js';
@@ -53,5 +53,11 @@ export const authController = {
     await authService.changePassword(req.user!.id, input.currentPassword, input.newPassword);
     clearRefreshCookie(res);
     res.json({ ok: true });
+  }),
+
+  verifyPassword: asyncHandler(async (req, res) => {
+    const input = verifyPasswordSchema.parse(req.body);
+    const ok = await authService.verifyPassword(req.user!.id, input.password);
+    res.json({ ok });
   }),
 };

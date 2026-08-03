@@ -47,7 +47,7 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
     const err = (data as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error;
-    throw new ApiError(res.status, err?.code, err?.message ?? 'Kuch gadbad ho gaya 🙏', err?.details);
+    throw new ApiError(res.status, err?.code, err?.message ?? 'Something went wrong. Please try again.', err?.details);
   }
   return data as T;
 }
