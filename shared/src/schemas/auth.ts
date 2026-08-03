@@ -20,6 +20,10 @@ export const changePasswordSchema = z
   });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** Re-confirm the signed-in user's own password to unlock a sensitive view (e.g. salary). */
+export const verifyPasswordSchema = z.object({ password: z.string().min(1, 'password required') });
+export type VerifyPasswordInput = z.infer<typeof verifyPasswordSchema>;
+
 /** Shape returned by GET /auth/me and embedded in the login response. */
 export interface AuthUser {
   id: string;

@@ -1,10 +1,12 @@
+import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/store/auth';
 import { api } from '@/lib/api';
 import { Button, Card, Pill, Section, Spinner } from '@/components/ui';
 import { LeaveArc } from '@/components/LeaveArc';
 import { LogoMark } from '@/components/Logo';
+import { Modal } from '@/components/Modal';
 import { IconLogout } from '@/components/Icons';
 import { fmtDate, rupees } from '@/lib/format';
 
@@ -31,10 +33,21 @@ export function Profile() {
   const user = useAuth((s) => s.user)!;
   const logout = useAuth((s) => s.logout);
   const navigate = useNavigate();
+  const [salaryUnlocked, setSalaryUnlocked] = useState(false);
+  const [askPassword, setAskPassword] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const balance = useQuery({ queryKey: ['balance', user.id], queryFn: () => api.get<{ pl: number; compOff: number; advanceDebt: number }>(`/profiles/${user.id}/leave-balance`) });
-  const salary = useQuery({ queryKey: ['salary', user.id], queryFn: () => api.get<SalaryView>(`/profiles/${user.id}/salary-view`) });
-  const ledger = useQuery({ queryKey: ['ledger', user.id], queryFn: () => api.get<{ ledger: LedgerEntry[] }>(`/profiles/${user.id}/leave-ledger`) });
+  const salary = useQuery({
+    queryKey: ['salary', user.id],
+    queryFn: () => api.get<SalaryView>(`/profiles/${user.id}/salary-view`),
+    enabled: salaryUnlocked,
+  });
+  const ledger = useQuery({
+    queryKey: ['ledger', user.id],
+    queryFn: () => api.get<{ ledger: LedgerEntry[] }>(`/profiles/${user.id}/leave-ledger`),
+    enabled: showHistory,
+  });
 
   return (
     <div className="flex flex-col gap-5 pt-1">
@@ -62,7 +75,7 @@ export function Profile() {
           {balance.data ? <LeaveArc pl={balance.data.pl} compOff={balance.data.compOff} /> : <Spinner />}
           <div className="flex flex-col gap-2 text-sm">
             <span className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-mint" /> PL {balance.data?.pl ?? '—'}
+              <span className="h-3 w-3 rounded-full bg-mint" /> Paid Leave {balance.data?.pl ?? '—'}
             </span>
             <span className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-primary" /> Comp-off {balance.data?.compOff ?? '—'}
@@ -74,7 +87,7 @@ export function Profile() {
         </Card>
         <div className="grid grid-cols-2 gap-3">
           <Button variant="ghost" onClick={() => navigate('/leave')}>
-            🏖️ Leave
+            🗓️ Leave
           </Button>
           <Button variant="ghost" onClick={() => navigate('/comp-off')}>
             🎟️ Comp-off
@@ -82,8 +95,20 @@ export function Profile() {
         </div>
       </Section>
 
-      {salary.data && (
-        <Section title="Salary — this month">
+      <Section title="Salary">
+        {!salaryUnlocked ? (
+          <Card className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <span className="text-lg">🔒</span>
+              <span>Your salary details are protected.</span>
+            </div>
+            <Button variant="ghost" className="!px-3 !py-2" onClick={() => setAskPassword(true)}>
+              View
+            </Button>
+          </Card>
+        ) : salary.isLoading || !salary.data ? (
+          <Spinner />
+        ) : (
           <Card className="flex flex-col gap-2 text-sm">
             <Row label="Base (estimate)" value={rupees(salary.data.gross)} />
             <Row label={`LWP (${salary.data.lwpDays}d / ${salary.data.workingDays} working)`} value={`− ${rupees(salary.data.deductions)}`} />
@@ -92,34 +117,47 @@ export function Profile() {
             )}
             <div className="my-1 border-t border-white/10" />
             <Row label="Net estimate" value={rupees(salary.data.net)} bold />
-            <p className="text-[11px] text-muted/70">A transparency estimate — not an official payslip. No PF/ESI/TDS.</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted/70">A transparency estimate — not an official payslip. No PF/ESI/TDS.</p>
+              <button className="text-[11px] text-muted underline" onClick={() => setSalaryUnlocked(false)}>
+                Hide
+              </button>
+            </div>
           </Card>
-        </Section>
-      )}
+        )}
+      </Section>
 
       <Section title="Leave history">
-        {ledger.isLoading ? (
-          <Spinner />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {(ledger.data?.ledger ?? [])
-              .slice()
-              .reverse()
-              .slice(0, 12)
-              .map((e) => (
-                <Card key={e.id} className="flex items-center justify-between !p-3 text-sm">
-                  <div>
-                    <p className="text-ink">{e.note ?? e.entryType}</p>
-                    <p className="text-[12px] text-muted">{fmtDate(e.effectiveDate)}</p>
-                  </div>
-                  <span className={e.amount >= 0 ? 'text-mint' : 'text-coral'}>
-                    {e.amount >= 0 ? '+' : ''}
-                    {e.amount}
-                  </span>
-                </Card>
-              ))}
-          </div>
-        )}
+        <Card className="flex items-center justify-between gap-3">
+          <span className="text-sm text-muted">Your full accrual and deduction history.</span>
+          <Button variant="ghost" className="!px-3 !py-2" onClick={() => setShowHistory((v) => !v)}>
+            {showHistory ? 'Hide' : 'View'}
+          </Button>
+        </Card>
+        {showHistory &&
+          (ledger.isLoading ? (
+            <Spinner />
+          ) : (ledger.data?.ledger.length ?? 0) === 0 ? (
+            <Card className="text-sm text-muted">No history yet.</Card>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {(ledger.data?.ledger ?? [])
+                .slice()
+                .reverse()
+                .map((e) => (
+                  <Card key={e.id} className="flex items-center justify-between !p-3 text-sm">
+                    <div>
+                      <p className="text-ink">{e.note ?? e.entryType}</p>
+                      <p className="text-[12px] text-muted">{fmtDate(e.effectiveDate)}</p>
+                    </div>
+                    <span className={e.amount >= 0 ? 'text-mint' : 'text-coral'}>
+                      {e.amount >= 0 ? '+' : ''}
+                      {e.amount}
+                    </span>
+                  </Card>
+                ))}
+            </div>
+          ))}
       </Section>
 
       {user.isAdmin && (
@@ -130,7 +168,58 @@ export function Profile() {
       <Button variant="ghost" className="!text-coral" onClick={() => void logout()}>
         <IconLogout /> Log out
       </Button>
+
+      <PasswordGateModal
+        open={askPassword}
+        onClose={() => setAskPassword(false)}
+        onVerified={() => {
+          setSalaryUnlocked(true);
+          setAskPassword(false);
+        }}
+      />
     </div>
+  );
+}
+
+/** Re-confirm the signed-in user's password before revealing salary. */
+function PasswordGateModal({ open, onClose, onVerified }: { open: boolean; onClose: () => void; onVerified: () => void }) {
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
+
+  const verify = useMutation({
+    mutationFn: () => api.post<{ ok: boolean }>('/auth/verify-password', { password }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        setPassword('');
+        setErr('');
+        onVerified();
+      } else {
+        setErr('Incorrect password. Please try again.');
+      }
+    },
+    onError: () => setErr('Incorrect password. Please try again.'),
+  });
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    setErr('');
+    if (password) verify.mutate();
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Confirm your password">
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <p className="text-sm text-muted">For your privacy, please re-enter your password to view salary details.</p>
+        <div>
+          <label className="label">Password</label>
+          <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+        </div>
+        {err && <p className="text-sm text-coral">{err}</p>}
+        <Button type="submit" disabled={verify.isPending}>
+          {verify.isPending ? 'Checking…' : 'Unlock salary'}
+        </Button>
+      </form>
+    </Modal>
   );
 }
 

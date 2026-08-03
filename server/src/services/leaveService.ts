@@ -111,6 +111,8 @@ function toDto(r: {
   startDate: Date;
   endDate: Date;
   isHalfDay: boolean;
+  halfDayArrival: string | null;
+  halfDayLeave: string | null;
   requestedDays: unknown;
   reason: string;
   status: string;
@@ -126,6 +128,8 @@ function toDto(r: {
     startDate: dbDateToIso(r.startDate),
     endDate: dbDateToIso(r.endDate),
     isHalfDay: r.isHalfDay,
+    halfDayArrival: r.halfDayArrival,
+    halfDayLeave: r.halfDayLeave,
     requestedDays: Number(r.requestedDays),
     reason: r.reason,
     status: r.status,
@@ -153,6 +157,8 @@ export const leaveService = {
       startDate: string;
       endDate: string;
       isHalfDay: boolean;
+      halfDayArrival?: string | null;
+      halfDayLeave?: string | null;
       reason: string;
     },
     viewer: AuthContext,
@@ -168,6 +174,8 @@ export const leaveService = {
         startDate: isoToDbDate(input.startDate),
         endDate: isoToDbDate(input.endDate),
         isHalfDay: input.isHalfDay,
+        halfDayArrival: input.isHalfDay ? input.halfDayArrival ?? null : null,
+        halfDayLeave: input.isHalfDay ? input.halfDayLeave ?? null : null,
         requestedDays: days,
         reason: input.reason,
       },
@@ -234,7 +242,7 @@ export const leaveService = {
       });
     });
 
-    await notify(req.userId, 'leave_decided', 'Leave approved 🎉', 'Your leave request was approved', {
+    await notify(req.userId, 'leave_decided', 'Leave approved', 'Your leave request has been approved.', {
       leaveRequestId: req.id,
     });
     return { ok: true, memeEvent: 'leave_approved' as const };
@@ -271,6 +279,8 @@ export const leaveService = {
       startDate: string;
       endDate: string;
       isHalfDay: boolean;
+      halfDayArrival?: string | null;
+      halfDayLeave?: string | null;
       reason: string;
     },
     admin: AuthContext,
@@ -289,6 +299,8 @@ export const leaveService = {
           startDate: isoToDbDate(input.startDate),
           endDate: isoToDbDate(input.endDate),
           isHalfDay: input.isHalfDay,
+          halfDayArrival: input.isHalfDay ? input.halfDayArrival ?? null : null,
+          halfDayLeave: input.isHalfDay ? input.halfDayLeave ?? null : null,
           requestedDays: days,
           reason: input.reason,
           status: 'approved',

@@ -7,6 +7,6 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    error: { code: 'rate_limited', message: 'Thoda ruk ja bhidu — bahut tries ho gaye 😅' },
+    error: { code: 'rate_limited', message: 'Too many attempts. Please wait a moment and try again.' },
   },
 });

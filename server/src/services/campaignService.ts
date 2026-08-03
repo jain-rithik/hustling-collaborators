@@ -175,8 +175,8 @@ export const campaignService = {
       await notifyMany(
         recipients,
         'campaign_overdue',
-        'Campaign overdue 🔴',
-        `${c.name} needs attention — the deadline has passed`,
+        'Campaign overdue',
+        `${c.name} needs attention — the deadline has passed.`,
         { campaignId: c.id },
       );
     }

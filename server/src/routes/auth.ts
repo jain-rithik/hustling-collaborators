@@ -10,3 +10,4 @@ authRouter.post('/refresh', authLimiter, authController.refresh);
 authRouter.post('/logout', authController.logout);
 authRouter.get('/me', requireAuth, authController.me);
 authRouter.post('/change-password', requireAuth, authController.changePassword);
+authRouter.post('/verify-password', authLimiter, requireAuth, authController.verifyPassword);

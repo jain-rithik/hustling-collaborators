@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { email, geoPoint, isoDate, uuid } from './common.js';
+import { clockTime, email, geoPoint, isoDate, uuid } from './common.js';
 import {
   ATTENDANCE_STATUSES,
   EMPLOYMENT_TYPES,
@@ -31,6 +31,10 @@ export const createTaskSchema = z.object({
   title: z.string().min(1),
   campaignId: uuid.nullable().optional(),
   estimatedMinutes: z.number().int().positive(),
+  // Optional planned window (HH:mm) — a scheduling aid shown on the card; the estimate
+  // (derived from these on the client) remains the source of truth for timing.
+  plannedStartTime: clockTime.nullable().optional(),
+  plannedEndTime: clockTime.nullable().optional(),
   workDate: isoDate.optional(),
   ownerId: uuid.optional(), // admin on-behalf
 });
@@ -38,10 +42,14 @@ export const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
   campaignId: uuid.nullable().optional(),
   estimatedMinutes: z.number().int().positive().optional(),
+  plannedStartTime: clockTime.nullable().optional(),
+  plannedEndTime: clockTime.nullable().optional(),
 });
 export const completeTaskSchema = z.object({
   // admin may supply a completion time on behalf; otherwise server uses now
   completedAt: z.string().datetime().optional(),
+  // captured when a task runs past its estimate (client prompts for it)
+  delayReason: z.string().min(1).max(500).optional(),
 });
 
 // ── Campaigns ────────────────────────────────────────────────────────────────
@@ -77,6 +85,9 @@ export const createLeaveSchema = z
     startDate: isoDate,
     endDate: isoDate,
     isHalfDay: z.boolean().default(false),
+    // For a half-day: the hours actually worked around it (HH:mm) — captured on the request.
+    halfDayArrival: clockTime.nullable().optional(),
+    halfDayLeave: clockTime.nullable().optional(),
     reason: z.string().min(1),
     allowAdvance: z.boolean().default(false),
   })
@@ -88,6 +99,8 @@ export const manualLeaveSchema = z.object({
   startDate: isoDate,
   endDate: isoDate,
   isHalfDay: z.boolean().default(false),
+  halfDayArrival: clockTime.nullable().optional(),
+  halfDayLeave: clockTime.nullable().optional(),
   reason: z.string().min(1),
 });
 export const adjustLeaveSchema = z.object({

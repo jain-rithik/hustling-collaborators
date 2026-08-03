@@ -50,7 +50,7 @@ export const authService = {
   async login(email: string, password: string): Promise<AuthResult> {
     const user = await authRepository.findByEmail(email);
     // Same message whether the email is unknown or the password is wrong (no user enumeration).
-    const generic = () => unauthorized('Email ya password galat hai 🤔');
+    const generic = () => unauthorized('Incorrect email or password.');
     if (!user || !user.isActive) throw generic();
     const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) throw generic();
@@ -97,8 +97,15 @@ export const authService = {
     const user = await authRepository.findByIdWithProfile(userId);
     if (!user) throw unauthorized();
     const ok = await verifyPassword(current, user.passwordHash);
-    if (!ok) throw unauthorized('Current password galat hai 🙈');
+    if (!ok) throw unauthorized('Your current password is incorrect.');
     await authRepository.updatePassword(userId, await hashPassword(next));
     await authRepository.revokeAllForUser(userId); // force re-login everywhere
+  },
+
+  /** Re-confirm the signed-in user's own password to unlock a sensitive view (e.g. salary). */
+  async verifyPassword(userId: string, password: string): Promise<boolean> {
+    const user = await authRepository.findByIdWithProfile(userId);
+    if (!user) throw unauthorized();
+    return verifyPassword(password, user.passwordHash);
   },
 };

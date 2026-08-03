@@ -56,7 +56,7 @@ export const compOffService = {
   ) {
     const now = systemClock.now();
     if (!isPreApprovalValid(now, input.offDate)) {
-      throw badRequest('Comp-off request off day se pehle karni hoti hai — no retro requests 🙏');
+      throw badRequest('A comp-off must be requested before the off day — retroactive requests are not allowed.');
     }
     const holidays = await getHolidayRefs();
     const profile = await prisma.employeeProfile.findUnique({
@@ -66,7 +66,7 @@ export const compOffService = {
     const dob = profile?.dateOfBirth ? dbDateToIso(profile.dateOfBirth) : null;
     const dayType = resolveDayType(input.offDate, { holidays, dob });
     if (!OFF_DAY_TYPES.includes(dayType)) {
-      throw badRequest('Comp-off sirf off days (Sunday / 4th Saturday / holiday) ke liye hai');
+      throw badRequest('Comp-off applies only to off days (Sunday, 4th Saturday, or a holiday).');
     }
     const request = await prisma.compOffRequest.create({
       data: {
@@ -124,8 +124,8 @@ export const compOffService = {
     await notify(
       input.userId,
       'comp_off_credited',
-      'Comp-off credited 🎉',
-      'You earned a comp-off day — use it before 31 March',
+      'Comp-off credited',
+      'You have earned a comp-off day. Please use it before 31 March.',
       { compOffCreditId: credit.id },
     );
     return { id: credit.id, expiresOn: dbDateToIso(credit.expiresOn), memeEvent: 'comp_off_approved' };

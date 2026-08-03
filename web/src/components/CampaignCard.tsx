@@ -39,10 +39,12 @@ export function CampaignCard({ c }: { c: CampaignDto }) {
         <Pill tone={accent}>{c.status === 'delivered' ? 'Delivered' : campaignLabel[c.state]}</Pill>
       </div>
       <div className="mt-4 flex items-center justify-between text-[13px] text-muted">
-        <span>👥 {c.memberCount} on it</span>
+        <span>
+          {c.memberCount} member{c.memberCount === 1 ? '' : 's'}
+        </span>
         <span>
           {c.state === 'delivered'
-            ? '🎉 shipped'
+            ? 'Delivered'
             : d < 0
               ? `${Math.abs(d)}d overdue`
               : d === 0

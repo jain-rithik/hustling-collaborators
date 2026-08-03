@@ -45,7 +45,11 @@ export function CompOff() {
         {q.isLoading ? (
           <Spinner />
         ) : (q.data?.requests.length ?? 0) === 0 ? (
-          <EmptyState emoji="🎟️" title="No comp-off requests" hint="Sunday hustle? Ask first, earn a weekday off." />
+          <EmptyState
+            emoji="🎟️"
+            title="No comp-off requests"
+            hint="Planning to work on an off day? Request it in advance to earn a compensatory day off."
+          />
         ) : (
           <div className="flex flex-col gap-2">
             {q.data!.requests.map((r) => (
@@ -96,11 +100,11 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
         <div>
           <label className="label">Planned work</label>
-          <input className="input" value={plannedWork} onChange={(e) => setPlannedWork(e.target.value)} placeholder="Sugar campaign edits" />
+          <input className="input" value={plannedWork} onChange={(e) => setPlannedWork(e.target.value)} placeholder="Eg. Finalise campaign edits" />
         </div>
         <div>
           <label className="label">Reason</label>
-          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Deadline crunch" />
+          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Eg. Approaching client deadline" />
         </div>
         {err && <p className="text-sm text-coral">{err}</p>}
         <Button type="submit" disabled={create.isPending}>

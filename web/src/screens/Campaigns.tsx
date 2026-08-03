@@ -33,7 +33,7 @@ export function Campaigns() {
         {q.isLoading ? (
           <Spinner />
         ) : (q.data?.campaigns.length ?? 0) === 0 ? (
-          <EmptyState emoji="📣" title="No campaigns yet" hint="Client aayega toh yahin dikhega." />
+          <EmptyState emoji="📣" title="No campaigns yet" hint="Your campaigns will appear here once they're created." />
         ) : (
           <div className="flex flex-col gap-3">
             {q.data!.campaigns.map((c) => (

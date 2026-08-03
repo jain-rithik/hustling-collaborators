@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { auth, login, prisma, resetDb, type Fixture } from './helpers.js';
+import { auth, login, prisma, PW, resetDb, type Fixture } from './helpers.js';
 
 // Only runs when a Postgres test DB is provided (CI). Keeps local `npm test` green without a DB.
 const RUN = !!process.env.RUN_API_TESTS;
@@ -123,6 +123,103 @@ describe.skipIf(!RUN)('API integration', () => {
       const res = await request(app).get('/api/v1/meme?event=task_completed_on_time').set(auth(m1T));
       expect(res.status).toBe(200);
       expect(typeof res.body.line).toBe('string');
+    });
+  });
+
+  describe('task planning, timeliness & delay reason', () => {
+    it('stores a planned window and returns it on the task', async () => {
+      const create = await request(app)
+        .post('/api/v1/tasks')
+        .set(auth(m1T))
+        .send({ title: 'planned', estimatedMinutes: 120, plannedStartTime: '14:00', plannedEndTime: '16:00' });
+      expect(create.status).toBe(201);
+      expect(create.body.task.plannedStartTime).toBe('14:00');
+      expect(create.body.task.plannedEndTime).toBe('16:00');
+    });
+
+    it('marks an over-estimate completion delayed and keeps the delay reason (admin completedAt)', async () => {
+      // Founder (admin) creates & completes on their own account with an explicit late completedAt.
+      const create = await request(app).post('/api/v1/tasks').set(auth(founderT)).send({ title: 'long job', estimatedMinutes: 30 });
+      const id = create.body.task.id;
+      await request(app).post(`/api/v1/tasks/${id}/start`).set(auth(founderT));
+      const done = await request(app)
+        .post(`/api/v1/tasks/${id}/complete`)
+        .set(auth(founderT))
+        .send({ completedAt: '2099-01-01T10:00:00.000Z', delayReason: 'Client sent revised assets midway' });
+      expect(done.body.task.status).toBe('done');
+      expect(done.body.task.timeliness).toBe('delayed');
+      expect(done.body.task.delayReason).toBe('Client sent revised assets midway');
+      expect(done.body.memeEvent).toBe('task_completed_late');
+    });
+
+    it('does not attach a delay reason to an on-time completion', async () => {
+      const create = await request(app).post('/api/v1/tasks').set(auth(founderT)).send({ title: 'quick job', estimatedMinutes: 600 });
+      const id = create.body.task.id;
+      await request(app).post(`/api/v1/tasks/${id}/start`).set(auth(founderT));
+      const done = await request(app)
+        .post(`/api/v1/tasks/${id}/complete`)
+        .set(auth(founderT))
+        .send({ delayReason: 'should be ignored' });
+      expect(done.body.task.timeliness).not.toBe('delayed');
+      expect(done.body.task.delayReason).toBeNull();
+    });
+  });
+
+  describe('founder all-tasks-done notification', () => {
+    it('notifies the founder when a member clears their last open task', async () => {
+      const m2T = await login(app, fx.member2);
+      const create = await request(app).post('/api/v1/tasks').set(auth(m2T)).send({ title: 'only task', estimatedMinutes: 20 });
+      const id = create.body.task.id;
+      await request(app).post(`/api/v1/tasks/${id}/start`).set(auth(m2T));
+      await request(app).post(`/api/v1/tasks/${id}/complete`).set(auth(m2T)).send({});
+      const notes = await request(app).get('/api/v1/notifications').set(auth(founderT));
+      expect(notes.status).toBe(200);
+      expect(notes.body.notifications.some((n: { type: string }) => n.type === 'all_tasks_done')).toBe(true);
+    });
+  });
+
+  describe('salary re-auth (verify-password)', () => {
+    it('confirms the right password and rejects the wrong one', async () => {
+      const good = await request(app).post('/api/v1/auth/verify-password').set(auth(m1T)).send({ password: PW });
+      expect(good.status).toBe(200);
+      expect(good.body.ok).toBe(true);
+      const bad = await request(app).post('/api/v1/auth/verify-password').set(auth(m1T)).send({ password: 'wrong-pass' });
+      expect(bad.body.ok).toBe(false);
+    });
+  });
+
+  describe('admin daily overview', () => {
+    it('lists everyone with arrival + task info (founder only)', async () => {
+      const res = await request(app).get('/api/v1/admin/daily-overview').set(auth(founderT));
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.people)).toBe(true);
+      expect(res.body.people.length).toBeGreaterThanOrEqual(4);
+      const row = res.body.people[0];
+      expect(row).toHaveProperty('checkInAt');
+      expect(row).toHaveProperty('tasks');
+      // team members cannot reach it
+      expect((await request(app).get('/api/v1/admin/daily-overview').set(auth(m1T))).status).toBe(403);
+    });
+  });
+
+  describe('half-day leave captures worked hours', () => {
+    it('stores arrival/leave times on a half-day request', async () => {
+      const res = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({
+          leaveType: 'pl',
+          startDate: '2026-12-20',
+          endDate: '2026-12-20',
+          isHalfDay: true,
+          halfDayArrival: '09:30',
+          halfDayLeave: '13:30',
+          reason: 'Personal appointment',
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.request.isHalfDay).toBe(true);
+      expect(res.body.request.halfDayArrival).toBe('09:30');
+      expect(res.body.request.halfDayLeave).toBe('13:30');
     });
   });
 });

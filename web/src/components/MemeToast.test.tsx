@@ -8,15 +8,15 @@ afterEach(() => {
 });
 
 describe('MemeToast', () => {
-  it('renders a queued meme line as a status pill', () => {
+  it('renders a queued toast line as a status pill', () => {
     render(<ToastHost />);
-    act(() => useToasts.getState().push('Abhi maja aayega na bhidu! 🔥'));
-    expect(screen.getByRole('status')).toHaveTextContent('Abhi maja aayega na bhidu! 🔥');
+    act(() => useToasts.getState().push('Right on target. Your focus really shows.'));
+    expect(screen.getByRole('status')).toHaveTextContent('Right on target. Your focus really shows.');
   });
 
   it('remembers the last line per event (drives the no-repeat rule)', () => {
-    act(() => useToasts.setState({ lastByEvent: { checkin_on_time: 'Punctual Hustler has entered the chat ⚡' } }));
-    expect(useToasts.getState().lastByEvent.checkin_on_time).toContain('Punctual Hustler');
+    act(() => useToasts.setState({ lastByEvent: { checkin_on_time: 'Right on time. Have a productive day ahead.' } }));
+    expect(useToasts.getState().lastByEvent.checkin_on_time).toContain('productive day');
   });
 
   it('shows nothing when the queue is empty', () => {
