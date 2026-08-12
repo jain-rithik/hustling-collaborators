@@ -1,7 +1,14 @@
 import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LEAVE_TYPE_LABELS, type LeaveType, SELECTABLE_LEAVE_TYPES } from '@hc/shared';
+import {
+  BEREAVEMENT_RELATIONSHIP_LABELS,
+  BEREAVEMENT_RELATIONSHIPS,
+  type BereavementRelationship,
+  LEAVE_TYPE_LABELS,
+  type LeaveType,
+  SELECTABLE_LEAVE_TYPES,
+} from '@hc/shared';
 import { api } from '@/lib/api';
 import { Button, Card, EmptyState, Pill, Section, Spinner } from '@/components/ui';
 import { Modal } from '@/components/Modal';
@@ -16,6 +23,8 @@ interface LeaveRequest {
   isHalfDay: boolean;
   halfDayArrival: string | null;
   halfDayLeave: string | null;
+  isSick: boolean;
+  bereavementRelationship: BereavementRelationship | null;
   requestedDays: number;
   reason: string;
   status: string;
@@ -61,9 +70,12 @@ export function Leave() {
             {q.data!.requests.map((r) => (
               <Card key={r.id} className="flex items-center justify-between !p-3">
                 <div>
-                  <p className="font-display font-semibold text-ink">
-                    {LEAVE_TYPE_LABELS[r.leaveType]} · {r.isHalfDay ? 'Half day' : `${r.requestedDays}d`}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-display font-semibold text-ink">
+                      {LEAVE_TYPE_LABELS[r.leaveType]} · {r.isHalfDay ? 'Half day' : `${r.requestedDays}d`}
+                    </p>
+                    {r.isSick && <Pill tone="lavender">Sick</Pill>}
+                  </div>
                   <p className="text-[12px] text-muted">
                     {fmtDate(r.startDate)}
                     {r.startDate !== r.endDate ? ` → ${fmtDate(r.endDate)}` : ''}
@@ -73,6 +85,9 @@ export function Leave() {
                     {' · '}
                     {r.reason}
                   </p>
+                  {r.bereavementRelationship && (
+                    <p className="text-[12px] text-muted">{BEREAVEMENT_RELATIONSHIP_LABELS[r.bereavementRelationship]}</p>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Pill tone={STATUS_TONE[r.status]}>{r.status}</Pill>
@@ -100,8 +115,17 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [isHalfDay, setIsHalfDay] = useState(false);
   const [halfDayArrival, setHalfDayArrival] = useState('10:00');
   const [halfDayLeave, setHalfDayLeave] = useState('14:00');
+  const [isSick, setIsSick] = useState(false);
+  const [bereavementRelationship, setBereavementRelationship] = useState<BereavementRelationship | ''>('');
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
+
+  function changeType(next: LeaveType) {
+    setLeaveType(next);
+    if (next !== 'pl') setIsSick(false);
+    if (next !== 'bereavement') setBereavementRelationship('');
+    if (next === 'wfh') setIsHalfDay(false);
+  }
 
   const create = useMutation({
     mutationFn: () =>
@@ -112,6 +136,8 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
         isHalfDay,
         halfDayArrival: isHalfDay ? halfDayArrival : undefined,
         halfDayLeave: isHalfDay ? halfDayLeave : undefined,
+        isSick: leaveType === 'pl' ? isSick : false,
+        bereavementRelationship: leaveType === 'bereavement' ? bereavementRelationship : undefined,
         reason,
       }),
     onSuccess: () => {
@@ -124,8 +150,15 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   function submit(e: FormEvent) {
     e.preventDefault();
     setErr('');
-    if (startDate && reason) create.mutate();
-    else setErr('Please choose a date and add a reason.');
+    if (!startDate || !reason) {
+      setErr('Please choose a date and add a reason.');
+      return;
+    }
+    if (leaveType === 'bereavement' && !bereavementRelationship) {
+      setErr('Please select your relationship to the deceased.');
+      return;
+    }
+    create.mutate();
   }
 
   return (
@@ -133,17 +166,59 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div>
           <label className="label">Type</label>
-          <select className="input" value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveType)}>
+          <select className="input" value={leaveType} onChange={(e) => changeType(e.target.value as LeaveType)}>
             {SELECTABLE_LEAVE_TYPES.map((t) => (
               <option key={t} value={t}>
                 {LEAVE_TYPE_LABELS[t]}
               </option>
             ))}
           </select>
+          {leaveType === 'pl' && !isSick && (
+            <p className="mt-1 text-[12px] text-muted">
+              Paid leave must be applied at least 5 calendar days in advance, otherwise it is taken as Leave Without Pay.
+            </p>
+          )}
+          {leaveType === 'wfh' && (
+            <p className="mt-1 text-[12px] text-muted">Work-from-home must be requested at least 24 hours in advance.</p>
+          )}
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" checked={isHalfDay} onChange={(e) => setIsHalfDay(e.target.checked)} /> Half day
-        </label>
+        {leaveType === 'pl' && (
+          <div>
+            <label className="flex items-center gap-2 text-sm text-muted">
+              <input type="checkbox" checked={isSick} onChange={(e) => setIsSick(e.target.checked)} /> This is a sick leave request
+            </label>
+            {isSick && (
+              <p className="mt-1 text-[12px] text-muted">
+                Sick leave can be same-day, but must be submitted before 9:30 AM — otherwise it is taken as Leave Without Pay.
+              </p>
+            )}
+          </div>
+        )}
+        {leaveType === 'bereavement' && (
+          <div>
+            <label className="label">Relationship to Deceased</label>
+            <select
+              className="input"
+              value={bereavementRelationship}
+              onChange={(e) => setBereavementRelationship(e.target.value as BereavementRelationship | '')}
+            >
+              <option value="" disabled>
+                — Select —
+              </option>
+              {BEREAVEMENT_RELATIONSHIPS.map((rel) => (
+                <option key={rel} value={rel}>
+                  {BEREAVEMENT_RELATIONSHIP_LABELS[rel]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[12px] text-muted">Bereavement leave is up to 3 working days.</p>
+          </div>
+        )}
+        {leaveType !== 'wfh' && (
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={isHalfDay} onChange={(e) => setIsHalfDay(e.target.checked)} /> Half day
+          </label>
+        )}
         {isHalfDay ? (
           <>
             <div>

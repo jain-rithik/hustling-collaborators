@@ -1,0 +1,24 @@
+name: Break sweep
+
+# Backstop for long-break alerts (v2 change log §02). While an employee's app is open it polls
+# /breaks/today and alerts fire in near real time; this sweep covers the case where they close the
+# app mid-break so managers are still notified. GitHub cron is best-effort (~every 15 min).
+# Requires repo secrets API_URL (Render base URL) and JOB_SECRET (matching the server env).
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire break-sweep
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          JOB_SECRET: ${{ secrets.JOB_SECRET }}
+        run: |
+          set -e
+          curl -fsS -X POST "$API_URL/api/v1/internal/jobs/break-sweep" \
+            -H "Authorization: Bearer $JOB_SECRET"
+          echo

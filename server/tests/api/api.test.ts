@@ -222,4 +222,117 @@ describe.skipIf(!RUN)('API integration', () => {
       expect(res.body.request.halfDayLeave).toBe('13:30');
     });
   });
+
+  // ── v2 change log ──────────────────────────────────────────────────────────
+  const isoInDays = (n: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  describe('breaks — silent tracking + threshold alerts (v2 §02)', () => {
+    it('one break at a time; start → active, end → cleared', async () => {
+      const m2T = await login(app, fx.member2);
+      const s1 = await request(app).post('/api/v1/breaks/start').set(auth(m2T)).send({ type: 'lunch' });
+      expect(s1.status).toBe(200);
+      expect(s1.body.active.type).toBe('lunch');
+      const s2 = await request(app).post('/api/v1/breaks/start').set(auth(m2T)).send({ type: 'tea' });
+      expect(s2.status).toBe(409); // already on a break
+      const end = await request(app).post('/api/v1/breaks/end').set(auth(m2T));
+      expect(end.body.active).toBeNull();
+    });
+
+    it('a long lunch alerts the manager silently and pops the employee at 55m', async () => {
+      const m1 = await userId(fx.member1);
+      // Insert a lunch break that started 60 minutes ago.
+      await prisma.breakLog.create({
+        data: { userId: m1, type: 'lunch', day: new Date(isoInDays(0)), startedAt: new Date(Date.now() - 60 * 60_000) },
+      });
+      const today = await request(app).get('/api/v1/breaks/today').set(auth(m1T));
+      expect(today.body.employeeAlert).toBe(true); // > 55 min → employee popup
+      // Manager (RM) + founder get the silent alert; employee gets the reminder.
+      const mgr = await request(app).get('/api/v1/notifications').set(auth(managerT));
+      expect(mgr.body.notifications.some((n: { type: string }) => n.type === 'break_alert')).toBe(true);
+      const self = await request(app).get('/api/v1/notifications').set(auth(m1T));
+      expect(self.body.notifications.some((n: { type: string }) => n.type === 'break_reminder')).toBe(true);
+    });
+  });
+
+  describe('leave rules (v2 §05)', () => {
+    it('paid leave applied within 5 days is auto-marked LWP', async () => {
+      const res = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({ leaveType: 'pl', startDate: isoInDays(2), endDate: isoInDays(2), reason: 'short notice' });
+      expect(res.status).toBe(201);
+      expect(res.body.request.leaveType).toBe('lwp');
+    });
+
+    it('WFH within 24h is rejected; ≥24h ahead is accepted', async () => {
+      const soon = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({ leaveType: 'wfh', startDate: isoInDays(0), endDate: isoInDays(0), reason: 'plumber' });
+      expect(soon.status).toBe(400);
+      const ok = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({ leaveType: 'wfh', startDate: isoInDays(3), endDate: isoInDays(3), reason: 'focus day' });
+      expect(ok.status).toBe(201);
+      expect(ok.body.request.leaveType).toBe('wfh');
+    });
+
+    it('bereavement requires a relationship and caps at 3 days', async () => {
+      const missing = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({ leaveType: 'bereavement', startDate: isoInDays(1), endDate: isoInDays(1), reason: 'family' });
+      expect(missing.status).toBe(422); // relationship required by schema
+      const tooLong = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({
+          leaveType: 'bereavement',
+          startDate: isoInDays(1),
+          endDate: isoInDays(5),
+          bereavementRelationship: 'parents',
+          reason: 'family',
+        });
+      expect(tooLong.status).toBe(400); // > 3 days
+      const ok = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({
+          leaveType: 'bereavement',
+          startDate: isoInDays(1),
+          endDate: isoInDays(2),
+          bereavementRelationship: 'spouse_partner',
+          reason: 'family',
+        });
+      expect(ok.status).toBe(201);
+      expect(ok.body.request.bereavementRelationship).toBe('spouse_partner');
+    });
+
+    it('a 3+ day leave inside 15 days is routed to Admin for review', async () => {
+      const before = (await request(app).get('/api/v1/admin/pending-requests').set(auth(founderT))).body.leave.length;
+      const res = await request(app)
+        .post('/api/v1/leave/requests')
+        .set(auth(m1T))
+        .send({ leaveType: 'pl', startDate: isoInDays(6), endDate: isoInDays(10), reason: 'trip' });
+      expect(res.status).toBe(201);
+      expect(res.body.request.leaveType).toBe('pl'); // 6 days out → still paid, but flagged for review
+      const after = (await request(app).get('/api/v1/admin/pending-requests').set(auth(founderT))).body.leave.length;
+      expect(after).toBe(before + 1);
+    });
+  });
+
+  describe('admin pending-requests view (v2 §05)', () => {
+    it('aggregates pending leave + comp-off, admin only', async () => {
+      const res = await request(app).get('/api/v1/admin/pending-requests').set(auth(founderT));
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.leave)).toBe(true);
+      expect(Array.isArray(res.body.compOff)).toBe(true);
+      expect((await request(app).get('/api/v1/admin/pending-requests').set(auth(m1T))).status).toBe(403);
+    });
+  });
 });

@@ -4,8 +4,8 @@ import { GRACE_CUTOFF_SECONDS } from './time/ist.js';
 import { qualifiesAsHalfDay } from './halfDay.js';
 
 /**
- * Lateness (domain-rules §4.1 / PRD §9.1). On or before 10:45:00 IST = on-time; strictly
- * after = late. Applies only to office days; WFH/off days have no lateness rule.
+ * Lateness (domain-rules §4.1 / PRD §9.1, v2 change log §03). On or before 10:40:00 IST = on-time;
+ * strictly after = late. Applies only to office days; WFH/off days have no lateness rule.
  */
 export function classifyCheckIn(checkInAt: DateTime): { isLate: boolean } {
   const ist = checkInAt.setZone(IST_TZ);

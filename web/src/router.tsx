@@ -7,6 +7,7 @@ import { Tasks } from '@/screens/Tasks';
 import { Campaigns } from '@/screens/Campaigns';
 import { CampaignDetail } from '@/screens/CampaignDetail';
 import { Attendance } from '@/screens/Attendance';
+import { HolidayCalendar } from '@/screens/HolidayCalendar';
 import { Leaderboard } from '@/screens/Leaderboard';
 import { Profile } from '@/screens/Profile';
 import { Leave } from '@/screens/Leave';
@@ -35,7 +36,10 @@ export const router = createBrowserRouter([
       { path: 'tasks', element: <Tasks /> },
       { path: 'campaigns', element: <Campaigns /> },
       { path: 'campaigns/:id', element: <CampaignDetail /> },
-      { path: 'attendance', element: <Attendance /> },
+      { path: 'calendar', element: <Attendance /> },
+      // keep the old path working for any bookmarks / PWA shortcuts
+      { path: 'attendance', element: <Navigate to="/calendar" replace /> },
+      { path: 'holidays', element: <HolidayCalendar /> },
       { path: 'leaderboard', element: <Leaderboard /> },
       { path: 'profile', element: <Profile /> },
       { path: 'leave', element: <Leave /> },

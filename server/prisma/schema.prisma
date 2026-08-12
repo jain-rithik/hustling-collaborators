@@ -58,6 +58,12 @@ enum LeaveType {
   maternity
   paternity
   optional_holiday
+  wfh
+}
+
+enum BreakType {
+  lunch
+  tea
 }
 
 enum RequestStatus {
@@ -97,6 +103,9 @@ enum NotificationType {
   leave_decided
   task_assigned
   all_tasks_done
+  break_alert
+  break_reminder
+  late_arrival
   admin_note
 }
 
@@ -118,6 +127,7 @@ model User {
   reportees            EmployeeProfile[]     @relation("ReportingManager")
   tasks                Task[]
   attendanceDays       AttendanceDay[]
+  breakLogs            BreakLog[]
   leaveRequests        LeaveRequest[]
   leaveLedger          LeaveLedger[]
   compOffRequests      CompOffRequest[]
@@ -283,6 +293,27 @@ model AttendanceDay {
   @@map("attendance_days")
 }
 
+// Silent lunch/tea break tracking (v2 change log §02). Only timestamps are stored — the employee
+// never sees a timer or duration. managerAlertedAt / employeeAlertedAt dedupe threshold alerts.
+model BreakLog {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  type              BreakType
+  day               DateTime  @db.Date
+  startedAt         DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt           DateTime? @map("ended_at") @db.Timestamptz(6)
+  managerAlertedAt  DateTime? @map("manager_alerted_at") @db.Timestamptz(6)
+  employeeAlertedAt DateTime? @map("employee_alerted_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, day])
+  @@index([endedAt])
+  @@map("break_logs")
+}
+
 model Holiday {
   id        String   @id @default(uuid()) @db.Uuid
   day       DateTime @unique @db.Date
@@ -322,6 +353,8 @@ model LeaveRequest {
   isHalfDay     Boolean       @default(false) @map("is_half_day")
   halfDayArrival String?      @map("half_day_arrival") // HH:mm — hours worked around a half-day
   halfDayLeave   String?      @map("half_day_leave") // HH:mm
+  isSick        Boolean       @default(false) @map("is_sick") // PL flagged as sick leave
+  bereavementRelationship String? @map("bereavement_relationship") // RM/Admin-visible only
   requestedDays Decimal       @map("requested_days") @db.Decimal(5, 2)
   reason        String
   status        RequestStatus @default(pending)

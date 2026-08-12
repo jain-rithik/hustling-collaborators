@@ -313,18 +313,21 @@ function DelayReasonModal({
   onSubmit: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const trimmed = reason.trim();
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    onSubmit(reason.trim());
+    if (!trimmed) return; // reason is mandatory — cannot skip
+    onSubmit(trimmed);
     setReason('');
   }
 
   return (
-    <Modal open={!!task} onClose={onClose} title="This task ran over its estimate">
+    // Mandatory (v2 §04): no skip, not dismissible, submit stays disabled until a reason is typed.
+    <Modal open={!!task} onClose={onClose} title="This task ran over its estimate" dismissible={false}>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <p className="text-sm text-muted">
-          “{task?.title}” took longer than planned. Adding a quick note helps everyone plan better next time.
+          “{task?.title}” took longer than planned. Please add a reason for the delay to mark it complete.
         </p>
         <div>
           <label className="label">Reason for delay</label>
@@ -336,14 +339,9 @@ function DelayReasonModal({
             autoFocus
           />
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="ghost" className="flex-1" onClick={() => onSubmit('')} disabled={busy}>
-            Skip
-          </Button>
-          <Button type="submit" className="flex-1" disabled={busy}>
-            {busy ? 'Saving…' : 'Mark complete'}
-          </Button>
-        </div>
+        <Button type="submit" className="w-full" disabled={busy || !trimmed}>
+          {busy ? 'Saving…' : 'Mark complete'}
+        </Button>
       </form>
     </Modal>
   );

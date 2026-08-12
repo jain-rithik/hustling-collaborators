@@ -169,7 +169,7 @@ interface SeedPerson {
 const FOUNDER_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'founder@hustlingcollaborators.com';
 
 const PEOPLE: SeedPerson[] = [
-  { email: FOUNDER_EMAIL, fullName: 'The Founder', code: 'HC-001', role: 'admin', isAdmin: true, isFounder: true, type: 'full_time', joining: '2024-01-01', dob: '1995-05-20', designation: 'Founder', salary: 0 },
+  { email: FOUNDER_EMAIL, fullName: process.env.SEED_ADMIN_NAME ?? 'Founder', code: 'HC-001', role: 'admin', isAdmin: true, isFounder: true, type: 'full_time', joining: '2024-01-01', dob: '1995-05-20', designation: 'Founder', salary: 0 },
   { email: 'priya@hustlingcollaborators.com', fullName: 'Priya Nair', code: 'HC-002', role: 'reporting_manager', type: 'full_time', joining: '2025-04-01', dob: '1994-11-02', designation: 'Reporting Manager', salary: 90000, managerEmail: FOUNDER_EMAIL },
   { email: 'anshuman@hustlingcollaborators.com', fullName: 'Anshuman Verma', code: 'HC-003', role: 'team_member', isAdmin: true, type: 'full_time', joining: '2025-06-01', dob: '1998-09-12', designation: 'Ops Lead', salary: 60000, managerEmail: 'priya@hustlingcollaborators.com' },
   { email: 'rohan@hustlingcollaborators.com', fullName: 'Rohan Mehta', code: 'HC-004', role: 'team_member', type: 'full_time', joining: '2026-04-01', dob: '1999-03-15', designation: 'Influencer Manager', salary: 45000, managerEmail: 'priya@hustlingcollaborators.com' },

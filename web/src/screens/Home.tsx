@@ -6,6 +6,7 @@ import { useToasts } from '@/store/toast';
 import { api } from '@/lib/api';
 import { Card, Pill, Section, Spinner, StatCard } from '@/components/ui';
 import { CampaignCard, type CampaignDto } from '@/components/CampaignCard';
+import { BreakControls } from '@/components/BreakControls';
 import { IconPin } from '@/components/Icons';
 import { fmtTime12, greeting } from '@/lib/format';
 
@@ -84,6 +85,8 @@ export function Home() {
           busy={checkIn.isPending || checkOut.isPending || wfh.isPending}
         />
       )}
+
+      {today.data?.checkedIn && today.data.status !== 'wfh' && <BreakControls />}
 
       <div className="grid grid-cols-2 gap-3">
         <button className="text-left" onClick={() => navigate('/tasks')}>
