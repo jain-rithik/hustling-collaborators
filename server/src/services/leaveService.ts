@@ -1,12 +1,27 @@
 import { DateTime } from 'luxon';
-import { IST_TZ, type LeaveType } from '@hc/shared';
+import { BEREAVEMENT_MAX_DAYS, IST_TZ, LEAVE_TYPE_LABELS, type LeaveType } from '@hc/shared';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
-import { dbDateToIso, isoToDbDate } from '../lib/dates.js';
-import { notify } from '../lib/notify.js';
-import { applyLeaveDeduction, computeBalance, round2 } from '../domain/index.js';
+import { dbDateToIso, isoToDbDate, istToday } from '../lib/dates.js';
+import { systemClock } from '../lib/clock.js';
+import { notify, notifyMany } from '../lib/notify.js';
+import {
+  applyLeaveDeduction,
+  computeBalance,
+  isLongLeave,
+  longLeaveNeedsReview,
+  plWithinAdvanceWindow,
+  round2,
+  sickLeaveBecomesLwp,
+  wfhTooSoon,
+} from '../domain/index.js';
 import type { AuthContext } from '../middleware/auth.js';
+
+async function adminIds(): Promise<string[]> {
+  const admins = await prisma.user.findMany({ where: { isActive: true, isAdmin: true }, select: { id: true } });
+  return admins.map((a) => a.id);
+}
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 
@@ -113,6 +128,8 @@ function toDto(r: {
   isHalfDay: boolean;
   halfDayArrival: string | null;
   halfDayLeave: string | null;
+  isSick: boolean;
+  bereavementRelationship: string | null;
   requestedDays: unknown;
   reason: string;
   status: string;
@@ -130,6 +147,9 @@ function toDto(r: {
     isHalfDay: r.isHalfDay,
     halfDayArrival: r.halfDayArrival,
     halfDayLeave: r.halfDayLeave,
+    isSick: r.isSick,
+    // Visible only to self / RM / Admin — the list & get endpoints already restrict to those viewers.
+    bereavementRelationship: r.bereavementRelationship,
     requestedDays: Number(r.requestedDays),
     reason: r.reason,
     status: r.status,
@@ -159,6 +179,8 @@ export const leaveService = {
       isHalfDay: boolean;
       halfDayArrival?: string | null;
       halfDayLeave?: string | null;
+      isSick?: boolean;
+      bereavementRelationship?: string | null;
       reason: string;
     },
     viewer: AuthContext,
@@ -166,33 +188,83 @@ export const leaveService = {
     if (input.isHalfDay && input.startDate !== input.endDate) {
       throw badRequest('A half-day leave must be a single day');
     }
+    const now = systemClock.now();
+    const today = istToday();
     const days = input.isHalfDay ? 0.5 : dayCount(input.startDate, input.endDate);
+    const isSick = input.leaveType === 'pl' && !!input.isSick;
+
+    // WFH must be requested ≥24h in advance — otherwise it is rejected outright (v2 §05).
+    if (input.leaveType === 'wfh' && wfhTooSoon(input.startDate, now)) {
+      throw badRequest('WFH must be requested at least 24 hours in advance.');
+    }
+    // Bereavement is capped at 3 working days (v2 §05).
+    if (input.leaveType === 'bereavement' && days > BEREAVEMENT_MAX_DAYS) {
+      throw badRequest(`Bereavement leave is capped at ${BEREAVEMENT_MAX_DAYS} working days.`);
+    }
+
+    // Advance-notice rules convert paid leave to LWP when applied too late.
+    let leaveType: LeaveType = input.leaveType;
+    const employeeNotes: string[] = [];
+    if (input.leaveType === 'pl') {
+      if (isSick) {
+        if (sickLeaveBecomesLwp(input.startDate, today, now)) {
+          leaveType = 'lwp';
+          employeeNotes.push('Sick leave must be requested before 9:30 AM. This has been marked as Leave Without Pay.');
+        }
+      } else if (plWithinAdvanceWindow(input.startDate, today)) {
+        leaveType = 'lwp';
+        employeeNotes.push('Paid leave must be applied at least 5 calendar days in advance. This has been marked as Leave Without Pay.');
+      }
+    }
+
+    // A long (>3 day) paid annual leave requested inside 15 days is routed to Admin for manual review.
+    const needsAdminReview =
+      !input.isHalfDay && leaveType === 'pl' && isLongLeave(days) && longLeaveNeedsReview(input.startDate, today);
+    if (needsAdminReview) {
+      employeeNotes.push('Leave longer than 3 days needs 15 days notice, so your request has been sent to Admin for review.');
+    }
+
     const request = await prisma.leaveRequest.create({
       data: {
         userId: viewer.id,
-        leaveType: input.leaveType,
+        leaveType,
         startDate: isoToDbDate(input.startDate),
         endDate: isoToDbDate(input.endDate),
         isHalfDay: input.isHalfDay,
         halfDayArrival: input.isHalfDay ? input.halfDayArrival ?? null : null,
         halfDayLeave: input.isHalfDay ? input.halfDayLeave ?? null : null,
+        isSick,
+        bereavementRelationship:
+          input.leaveType === 'bereavement' ? input.bereavementRelationship ?? null : null,
         requestedDays: days,
         reason: input.reason,
       },
     });
-    // Notify the reporting manager.
+
+    // Notify the approver(s): the reporting manager, plus Admins when a review is required.
     const profile = await prisma.employeeProfile.findUnique({
       where: { userId: viewer.id },
       select: { reportingManagerId: true, fullName: true },
     });
-    if (profile?.reportingManagerId) {
-      await notify(
-        profile.reportingManagerId,
+    const approvers = new Set<string>();
+    if (profile?.reportingManagerId) approvers.add(profile.reportingManagerId);
+    if (needsAdminReview) (await adminIds()).forEach((id) => approvers.add(id));
+    if (approvers.size) {
+      await notifyMany(
+        [...approvers],
         'leave_request',
-        'New leave request',
-        `${profile.fullName} requested ${days} day(s) of ${input.leaveType}`,
+        needsAdminReview ? 'Leave request needs review' : 'New leave request',
+        `${profile?.fullName ?? 'A team member'} requested ${days} day(s) of ${LEAVE_TYPE_LABELS[leaveType]}${
+          needsAdminReview ? ' — needs review (15-day notice)' : ''
+        }.`,
         { leaveRequestId: request.id },
       );
+    }
+    // Tell the employee about any automatic conversion or routing.
+    if (employeeNotes.length) {
+      await notify(viewer.id, 'leave_decided', 'Update on your leave request', employeeNotes.join(' '), {
+        leaveRequestId: request.id,
+      });
     }
     return toDto(request);
   },

@@ -5,8 +5,9 @@ import { useAuth } from '@/store/auth';
 import { api } from '@/lib/api';
 import { Button, Card, Pill, Section, Spinner } from '@/components/ui';
 import { Modal } from '@/components/Modal';
-import { IconChevronLeft } from '@/components/Icons';
+import { IconChevronLeft, IconPlus } from '@/components/Icons';
 import { fmtDate, fmtTime12, minutesToHuman } from '@/lib/format';
+import { BEREAVEMENT_RELATIONSHIP_LABELS, type BereavementRelationship, LEAVE_TYPE_LABELS, type LeaveType } from '@hc/shared';
 
 interface AdminUser {
   id: string;
@@ -45,6 +46,40 @@ interface AdminCampaign {
   status: string;
   memberCount: number;
 }
+interface Pending {
+  leave: LeaveReq[];
+  compOff: CompOffReq[];
+}
+interface LeaveReq {
+  id: string;
+  userId: string;
+  name: string;
+  leaveType: string;
+  start: string;
+  end: string;
+  isHalfDay: boolean;
+  isSick: boolean;
+  bereavementRelationship: string | null;
+  requestedDays: number;
+  reason: string;
+  createdAt: string;
+}
+interface CompOffReq {
+  id: string;
+  userId: string;
+  name: string;
+  offDate: string;
+  plannedWork: string;
+  reason: string;
+  createdAt: string;
+}
+interface Holiday {
+  id: string;
+  day: string;
+  name: string;
+  type: 'mandatory_holiday' | 'optional_holiday';
+  seeded: boolean;
+}
 
 const TIMELINESS_LABEL: Record<string, { label: string; tone: 'mint' | 'coral' }> = {
   before_time: { label: 'Before time', tone: 'mint' },
@@ -58,10 +93,16 @@ export function Admin() {
   const qc = useQueryClient();
   const [allotFor, setAllotFor] = useState<AdminUser | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [declineNote, setDeclineNote] = useState('');
+  const [confirmDeleteHoliday, setConfirmDeleteHoliday] = useState<string | null>(null);
+  const [holidayModal, setHolidayModal] = useState(false);
 
   const overview = useQuery({ queryKey: ['admin', 'overview'], queryFn: () => api.get<{ date: string; people: OverviewPerson[] }>('/admin/daily-overview') });
+  const pending = useQuery({ queryKey: ['admin', 'pending'], queryFn: () => api.get<Pending>('/admin/pending-requests') });
   const users = useQuery({ queryKey: ['admin', 'users'], queryFn: () => api.get<{ users: AdminUser[] }>('/admin/users') });
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: () => api.get<{ campaigns: AdminCampaign[] }>('/campaigns') });
+  const holidays = useQuery({ queryKey: ['holidays'], queryFn: () => api.get<{ holidays: Holiday[] }>('/holidays') });
   const late = useQuery({ queryKey: ['admin', 'late'], queryFn: () => api.get<{ report: { userId: string; name: string; lateCount: number }[] }>('/admin/late-report') });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['admin'] });
@@ -80,6 +121,33 @@ export function Admin() {
       void qc.invalidateQueries({ queryKey: ['campaigns'] });
     },
   });
+  const approveLeave = useMutation({
+    mutationFn: (id: string) => api.post(`/leave/requests/${id}/approve`, {}),
+    onSuccess: invalidate,
+  });
+  const rejectLeave = useMutation({
+    mutationFn: (v: { id: string; note: string }) => api.post(`/leave/requests/${v.id}/reject`, { note: v.note }),
+    onSuccess: () => {
+      setDecliningId(null);
+      setDeclineNote('');
+      invalidate();
+    },
+  });
+  const approveCompOff = useMutation({
+    mutationFn: (id: string) => api.post(`/comp-off/requests/${id}/approve`),
+    onSuccess: invalidate,
+  });
+  const rejectCompOff = useMutation({
+    mutationFn: (id: string) => api.post(`/comp-off/requests/${id}/reject`),
+    onSuccess: invalidate,
+  });
+  const deleteHoliday = useMutation({
+    mutationFn: (id: string) => api.del(`/holidays/${id}`),
+    onSuccess: () => {
+      setConfirmDeleteHoliday(null);
+      void qc.invalidateQueries({ queryKey: ['holidays'] });
+    },
+  });
 
   return (
     <div className="flex flex-col gap-5 pt-1">
@@ -87,6 +155,98 @@ export function Admin() {
         <IconChevronLeft /> Back
       </button>
       <h1 className="font-display text-xl font-extrabold text-ink">Admin console</h1>
+
+      <Section title="Pending requests">
+        {pending.isLoading ? (
+          <Spinner />
+        ) : pending.data!.leave.length + pending.data!.compOff.length === 0 ? (
+          <Card className="text-sm text-muted">No pending requests right now.</Card>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {pending.data!.leave.map((l) => (
+              <Card key={l.id} className="!p-3">
+                <p className="font-display font-semibold text-ink">{l.name}</p>
+                <p className="text-[12px] text-muted">
+                  {LEAVE_TYPE_LABELS[l.leaveType as LeaveType]} · {fmtDate(l.start)}
+                  {l.start !== l.end ? ' → ' + fmtDate(l.end) : ''} · {l.isHalfDay ? 'Half day' : l.requestedDays + 'd'}
+                </p>
+                <p className="mt-1 text-[12px] text-muted">{l.reason}</p>
+                {(l.isSick || l.bereavementRelationship) && (
+                  <div className="mt-1.5 flex gap-1.5">
+                    {l.isSick && <Pill tone="lavender">Sick</Pill>}
+                    {l.bereavementRelationship && (
+                      <Pill tone="default">{BEREAVEMENT_RELATIONSHIP_LABELS[l.bereavementRelationship as BereavementRelationship]}</Pill>
+                    )}
+                  </div>
+                )}
+                {decliningId === l.id ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <input
+                      className="input"
+                      placeholder="Reason (optional)"
+                      value={declineNote}
+                      onChange={(e) => setDeclineNote(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => {
+                          setDecliningId(null);
+                          setDeclineNote('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="coral"
+                        className="flex-1"
+                        disabled={rejectLeave.isPending}
+                        onClick={() => rejectLeave.mutate({ id: l.id, note: declineNote })}
+                      >
+                        Confirm decline
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="mint" className="flex-1" disabled={approveLeave.isPending} onClick={() => approveLeave.mutate(l.id)}>
+                      Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => {
+                        setDecliningId(l.id);
+                        setDeclineNote('');
+                      }}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            ))}
+            {pending.data!.compOff.map((c) => (
+              <Card key={c.id} className="!p-3">
+                <p className="font-display font-semibold text-ink">{c.name}</p>
+                <p className="text-[12px] text-muted">
+                  {fmtDate(c.offDate)} · {c.plannedWork}
+                </p>
+                <p className="mt-1 text-[12px] text-muted">{c.reason}</p>
+                <div className="mt-3 flex gap-2">
+                  <Button variant="mint" className="flex-1" disabled={approveCompOff.isPending} onClick={() => approveCompOff.mutate(c.id)}>
+                    Approve
+                  </Button>
+                  <Button variant="ghost" className="flex-1" disabled={rejectCompOff.isPending} onClick={() => rejectCompOff.mutate(c.id)}>
+                    Decline
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Section>
 
       <Section title="Today — who's in & what's moving">
         {overview.isLoading ? (
@@ -133,6 +293,53 @@ export function Admin() {
                     Delete
                   </button>
                 )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="Holidays"
+        action={
+          <Button variant="ghost" className="!px-3 !py-2" onClick={() => setHolidayModal(true)}>
+            <IconPlus /> Add
+          </Button>
+        }
+      >
+        {holidays.isLoading ? (
+          <Spinner />
+        ) : (holidays.data?.holidays.length ?? 0) === 0 ? (
+          <Card className="text-sm text-muted">No holidays added yet.</Card>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {holidays.data!.holidays.map((h) => (
+              <Card key={h.id} className="flex items-center justify-between !p-3">
+                <div className="min-w-0">
+                  <p className="truncate font-display font-semibold text-ink">{h.name}</p>
+                  <p className="text-[12px] text-muted">{fmtDate(h.day)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {h.type === 'mandatory_holiday' ? <Pill tone="coral">Mandatory</Pill> : <Pill tone="sunny">Optional</Pill>}
+                  {confirmDeleteHoliday === h.id ? (
+                    <div className="flex items-center gap-2">
+                      <button className="text-[12px] text-muted" onClick={() => setConfirmDeleteHoliday(null)}>
+                        Cancel
+                      </button>
+                      <button
+                        className="pill bg-coral/20 text-coral"
+                        disabled={deleteHoliday.isPending}
+                        onClick={() => deleteHoliday.mutate(h.id)}
+                      >
+                        Confirm delete
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="pill bg-white/8 text-coral" onClick={() => setConfirmDeleteHoliday(h.id)}>
+                      Delete
+                    </button>
+                  )}
+                </div>
               </Card>
             ))}
           </div>
@@ -204,6 +411,7 @@ export function Admin() {
       </Section>
 
       <AllotLeaveModal user={allotFor} onClose={() => setAllotFor(null)} />
+      <HolidayModal open={holidayModal} onClose={() => setHolidayModal(false)} />
     </div>
   );
 }
@@ -306,6 +514,61 @@ function AllotLeaveModal({ user, onClose }: { user: AdminUser | null; onClose: (
         {err && <p className="text-sm text-coral">{err}</p>}
         <Button type="submit" disabled={adjust.isPending}>
           {adjust.isPending ? 'Saving…' : 'Update balance'}
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+/** Add a company holiday (mandatory or optional). Visible live to everyone once saved. */
+function HolidayModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [day, setDay] = useState('');
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'mandatory_holiday' | 'optional_holiday'>('mandatory_holiday');
+  const [err, setErr] = useState('');
+
+  const create = useMutation({
+    mutationFn: () => api.post('/holidays', { day, name, type }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['holidays'] });
+      setDay('');
+      setName('');
+      setType('mandatory_holiday');
+      onClose();
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    setErr('');
+    if (!day) return setErr('Please pick a date.');
+    if (!name.trim()) return setErr('Please add a holiday name.');
+    create.mutate();
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add holiday">
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <div>
+          <label className="label">Date</label>
+          <input className="input" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Name</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Independence Day" />
+        </div>
+        <div>
+          <label className="label">Type</label>
+          <select className="input" value={type} onChange={(e) => setType(e.target.value as 'mandatory_holiday' | 'optional_holiday')}>
+            <option value="mandatory_holiday">Mandatory Holiday</option>
+            <option value="optional_holiday">Optional Holiday</option>
+          </select>
+        </div>
+        {err && <p className="text-sm text-coral">{err}</p>}
+        <Button type="submit" disabled={create.isPending}>
+          {create.isPending ? 'Saving…' : 'Add holiday'}
         </Button>
       </form>
     </Modal>

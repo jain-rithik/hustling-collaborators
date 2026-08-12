@@ -12,8 +12,32 @@ export const FY_START_MONTH = 4;
 // ── Attendance (PRD §9.1 / §9.2) ─────────────────────────────────────────────
 /** Office start time (IST). */
 export const OFFICE_START = '10:30';
-/** Grace cutoff (IST). On or before 10:45:00 = on-time; 10:45:01+ = late. */
-export const GRACE_CUTOFF = '10:45';
+/** Grace cutoff (IST). On or before 10:40:00 = on-time; 10:40:01+ = late (v2 change log §03). */
+export const GRACE_CUTOFF = '10:40';
+/** When an employee reaches this many late arrivals in a calendar month, they (+ RM + Admin) are notified. */
+export const LATE_ARRIVAL_ALERT_COUNT = 5;
+
+// ── Break tracking (v2 change log §02 / §07) ─────────────────────────────────
+/** Manager+admin are silently notified when a lunch break exceeds this many minutes. */
+export const LUNCH_MANAGER_ALERT_MINUTES = 45;
+/** The employee gets a visible popup + sound when a lunch break exceeds this many minutes. */
+export const LUNCH_EMPLOYEE_ALERT_MINUTES = 55;
+/** Manager+admin are silently notified when a tea break exceeds this many minutes. */
+export const TEA_MANAGER_ALERT_MINUTES = 15;
+
+// ── Leave request rules (v2 change log §05) ──────────────────────────────────
+/** Paid leave must be applied at least this many calendar days in advance, else it becomes LWP. */
+export const PL_ADVANCE_DAYS = 5;
+/** Annual leave longer than this many consecutive days needs extra advance notice + review. */
+export const LONG_LEAVE_CONSECUTIVE_DAYS = 3;
+/** A long (3+ day) leave requested inside this many days of the start is routed to Admin for review. */
+export const LONG_LEAVE_ADVANCE_DAYS = 15;
+/** A WFH request must be submitted at least this many hours before the intended day. */
+export const WFH_ADVANCE_HOURS = 24;
+/** A sick-leave request is only same-day-valid if submitted on or before this IST time, else LWP. */
+export const SICK_LEAVE_CUTOFF = '09:30';
+/** Bereavement leave is capped at this many working days. */
+export const BEREAVEMENT_MAX_DAYS = 3;
 
 // ── Half-day (PRD §9.3) ──────────────────────────────────────────────────────
 /** A day qualifies as a half-day only with ≥ 4 productive hours; below that = full-day leave. */

@@ -41,7 +41,7 @@ export const ATTENDANCE_STATUSES = [
 ] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-/** Leave categories (PRD §4.3 / §9.8). `pl` = Paid Leave (casual+sick combined). */
+/** Leave categories (PRD §4.3 / §9.8). `pl` = Paid Leave (casual+sick combined). `wfh` = a work-from-home request. */
 export const LEAVE_TYPES = [
   'pl',
   'lwp',
@@ -51,6 +51,7 @@ export const LEAVE_TYPES = [
   'maternity',
   'paternity',
   'optional_holiday',
+  'wfh',
 ] as const;
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
@@ -59,7 +60,14 @@ export type LeaveType = (typeof LEAVE_TYPES)[number];
  * recorded by an admin (not self-served), and half-days are captured via the `isHalfDay` flag
  * rather than as a leave type — so neither appears in the self-service selector.
  */
-export const SELECTABLE_LEAVE_TYPES = ['pl', 'lwp', 'comp_off', 'bereavement', 'optional_holiday'] as const;
+export const SELECTABLE_LEAVE_TYPES = [
+  'pl',
+  'lwp',
+  'comp_off',
+  'bereavement',
+  'optional_holiday',
+  'wfh',
+] as const;
 export type SelectableLeaveType = (typeof SELECTABLE_LEAVE_TYPES)[number];
 
 /** Human-friendly display labels for each leave type (UI never shows the raw enum key). */
@@ -72,6 +80,36 @@ export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   maternity: 'Maternity',
   paternity: 'Paternity',
   optional_holiday: 'Optional Holiday',
+  wfh: 'Work From Home',
+};
+
+/** Break kinds tracked silently during the workday (v2 change log §02). */
+export const BREAK_TYPES = ['lunch', 'tea'] as const;
+export type BreakType = (typeof BREAK_TYPES)[number];
+
+export const BREAK_TYPE_LABELS: Record<BreakType, string> = {
+  lunch: 'Lunch',
+  tea: 'Tea',
+};
+
+/** Relationship options required when raising a Bereavement leave (v2 change log §05). */
+export const BEREAVEMENT_RELATIONSHIPS = [
+  'parents',
+  'grandparents',
+  'spouse_partner',
+  'blood_siblings',
+  'children',
+  'in_laws',
+] as const;
+export type BereavementRelationship = (typeof BEREAVEMENT_RELATIONSHIPS)[number];
+
+export const BEREAVEMENT_RELATIONSHIP_LABELS: Record<BereavementRelationship, string> = {
+  parents: 'Parents',
+  grandparents: 'Grandparents',
+  spouse_partner: 'Spouse / Partner',
+  blood_siblings: 'Blood Siblings',
+  children: 'Children',
+  in_laws: 'In-Laws',
 };
 
 /** Approval lifecycle for leave / comp-off requests (PRD §9.4 / §9.8). */
@@ -106,6 +144,9 @@ export const NOTIFICATION_TYPES = [
   'leave_decided',
   'task_assigned',
   'all_tasks_done',
+  'break_alert', // manager/admin: someone's break ran long (silent to the employee)
+  'break_reminder', // employee: your break has run long (client shows a popup + sound)
+  'late_arrival', // employee + RM + admin: 5th late arrival this month
   'admin_note',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

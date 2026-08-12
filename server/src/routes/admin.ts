@@ -49,6 +49,13 @@ adminRouter.get(
 );
 
 adminRouter.get(
+  '/pending-requests',
+  asyncHandler(async (_req, res) => {
+    res.json(await adminService.pendingRequests());
+  }),
+);
+
+adminRouter.get(
   '/late-report',
   asyncHandler(async (req, res) => {
     const month = (req.query.month as string | undefined) ?? istToday().slice(0, 7);

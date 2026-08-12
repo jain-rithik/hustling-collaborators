@@ -5,23 +5,23 @@ import { classifyCheckIn, deriveStatus } from '../../src/domain/attendance.js';
 
 const at = (hms: string) => DateTime.fromISO(`2026-11-10T${hms}`, { zone: IST_TZ });
 
-describe('classifyCheckIn — grace boundary (domain-rules §4.1, E14)', () => {
+describe('classifyCheckIn — grace boundary 10:40 (domain-rules §4.1, v2 §03)', () => {
   it.each([
     ['10:30:00', false],
-    ['10:44:59', false],
-    ['10:45:00', false], // grace inclusive
-    ['10:45:01', true],
-    ['10:46:00', true],
+    ['10:39:59', false],
+    ['10:40:00', false], // grace inclusive
+    ['10:40:01', true],
+    ['10:45:00', true], // formerly on-time under the old 10:45 grace — now late
     ['11:15:00', true],
   ])('check-in at %s → isLate=%s', (hms, expected) => {
     expect(classifyCheckIn(at(hms)).isLate).toBe(expected);
   });
 
   it('is correct even when the instant is expressed in UTC', () => {
-    // 05:15:01Z = 10:45:01 IST → late
-    expect(classifyCheckIn(DateTime.fromISO('2026-11-10T05:15:01Z')).isLate).toBe(true);
-    // 05:15:00Z = 10:45:00 IST → on-time
-    expect(classifyCheckIn(DateTime.fromISO('2026-11-10T05:15:00Z')).isLate).toBe(false);
+    // 05:10:01Z = 10:40:01 IST → late
+    expect(classifyCheckIn(DateTime.fromISO('2026-11-10T05:10:01Z')).isLate).toBe(true);
+    // 05:10:00Z = 10:40:00 IST → on-time
+    expect(classifyCheckIn(DateTime.fromISO('2026-11-10T05:10:00Z')).isLate).toBe(false);
   });
 });
 

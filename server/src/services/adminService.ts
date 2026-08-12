@@ -109,6 +109,45 @@ export const adminService = {
     };
   },
 
+  /** All pending leave + comp-off requests across the org, for the Admin approvals view (v2 §05). */
+  async pendingRequests() {
+    const [leaves, compOffs] = await Promise.all([
+      prisma.leaveRequest.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } }),
+      prisma.compOffRequest.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } }),
+    ]);
+    const userIds = [...new Set([...leaves.map((l) => l.userId), ...compOffs.map((c) => c.userId)])];
+    const profiles = await prisma.employeeProfile.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, fullName: true },
+    });
+    const nameByUser = new Map(profiles.map((p) => [p.userId, p.fullName]));
+    return {
+      leave: leaves.map((l) => ({
+        id: l.id,
+        userId: l.userId,
+        name: nameByUser.get(l.userId) ?? '',
+        leaveType: l.leaveType,
+        start: l.startDate.toISOString().slice(0, 10),
+        end: l.endDate.toISOString().slice(0, 10),
+        isHalfDay: l.isHalfDay,
+        isSick: l.isSick,
+        bereavementRelationship: l.bereavementRelationship,
+        requestedDays: Number(l.requestedDays),
+        reason: l.reason,
+        createdAt: l.createdAt.toISOString(),
+      })),
+      compOff: compOffs.map((c) => ({
+        id: c.id,
+        userId: c.userId,
+        name: nameByUser.get(c.userId) ?? '',
+        offDate: c.offDate.toISOString().slice(0, 10),
+        plannedWork: c.plannedWork,
+        reason: c.reason,
+        createdAt: c.createdAt.toISOString(),
+      })),
+    };
+  },
+
   /** Late-arrival counts per user for a month — surfaced to Admin/Manager, no auto-action (PRD §9.2). */
   async lateReport(month: string) {
     const start = DateTime.fromISO(`${month}-01`, { zone: IST_TZ });

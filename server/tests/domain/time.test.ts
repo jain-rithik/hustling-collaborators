@@ -31,9 +31,10 @@ describe('ist', () => {
     expect(toIstDateFromInstant(new Date('2026-11-08T19:00:00Z'))).toBe('2026-11-09');
   });
 
-  it('parses HH:mm to seconds and pins the grace cutoff at 10:45:00', () => {
+  it('parses HH:mm to seconds and pins the grace cutoff at 10:40:00 (v2 §03)', () => {
     expect(hhmmToSeconds('10:45')).toBe(38700);
-    expect(GRACE_CUTOFF_SECONDS).toBe(38700);
+    expect(hhmmToSeconds('10:40')).toBe(38400);
+    expect(GRACE_CUTOFF_SECONDS).toBe(38400);
   });
 
   it('start/end of day and round-trip', () => {
@@ -100,8 +101,8 @@ describe('weekday helpers (Aug 2026: Saturdays 1,8,15,22,29)', () => {
   });
 
   it('grace cutoff sanity via a real instant', () => {
-    // 10:45:00 IST is on-time; 10:45:01 IST is late (checked in attendance.test)
-    const t = DateTime.fromObject({ hour: 10, minute: 45, second: 0 }, { zone: IST_TZ });
+    // 10:40:00 IST is on-time; 10:40:01 IST is late (checked in attendance.test)
+    const t = DateTime.fromObject({ hour: 10, minute: 40, second: 0 }, { zone: IST_TZ });
     expect(t.hour * 3600 + t.minute * 60 + t.second).toBe(GRACE_CUTOFF_SECONDS);
   });
 });

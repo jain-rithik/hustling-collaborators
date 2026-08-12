@@ -12,7 +12,15 @@ export interface DayInfo {
 const HOLIDAY_TYPES = ['mandatory_holiday', 'optional_holiday'];
 const OFF_TYPES = ['sunday', 'fourth_saturday'];
 
-export function DayChip({ d, isToday }: { d: DayInfo; isToday: boolean }) {
+export function DayChip({
+  d,
+  isToday,
+  onSelect,
+}: {
+  d: DayInfo;
+  isToday: boolean;
+  onSelect?: (d: DayInfo) => void;
+}) {
   const n = new Date(`${d.day}T00:00:00`).getDate();
   const isHoliday = HOLIDAY_TYPES.includes(d.dayType);
   let bg = 'bg-white/[0.04]';
@@ -67,16 +75,37 @@ export function DayChip({ d, isToday }: { d: DayInfo; isToday: boolean }) {
       break;
   }
 
-  return (
-    <div
-      title={d.holidayName ?? d.remark ?? d.dayType.replaceAll('_', ' ')}
-      className={`relative flex aspect-square flex-col items-center justify-center rounded-xl ${bg} ${
-        isToday ? 'ring-1 ring-primary' : ''
-      }`}
-    >
+  const title = d.holidayName ?? d.remark ?? d.dayType.replaceAll('_', ' ');
+  const chipClass = `relative flex aspect-square flex-col items-center justify-center rounded-xl ${bg} ${
+    isToday ? 'ring-1 ring-primary' : ''
+  }`;
+  const tappable = !!onSelect && (isHoliday || !!d.holidayName);
+
+  const inner = (
+    <>
       <span className={`text-[13px] font-semibold ${text}`}>{n}</span>
       {label && <span className={`mt-0.5 text-[8px] leading-none ${text} opacity-80`}>{label}</span>}
       {d.remark && <span className="absolute bottom-1 right-1 h-1 w-1 rounded-full bg-sunny" />}
+    </>
+  );
+
+  if (tappable) {
+    return (
+      <button
+        type="button"
+        title={title}
+        aria-label={d.holidayName ? `${d.holidayName} holiday details` : 'Holiday details'}
+        onClick={() => onSelect!(d)}
+        className={`${chipClass} transition hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-primary`}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div title={title} className={chipClass}>
+      {inner}
     </div>
   );
 }

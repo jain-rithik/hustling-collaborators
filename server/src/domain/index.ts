@@ -8,6 +8,8 @@ export * from './time/fy.js';
 export * from './time/weekday.js';
 export * from './dayType.js';
 export * from './attendance.js';
+export * from './breaks.js';
+export * from './leaveRules.js';
 export * from './halfDay.js';
 export * from './focus.js';
 export * from './task.js';

@@ -1,14 +1,35 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/store/auth';
 import { api } from '@/lib/api';
-import { Card, Section, Spinner } from '@/components/ui';
+import { Card, Pill, Section, Spinner } from '@/components/ui';
+import { Modal } from '@/components/Modal';
 import { DayChip, type DayInfo } from '@/components/DayChip';
 import { IconChevronLeft } from '@/components/Icons';
+import { fmtDate } from '@/lib/format';
 
 const clientToday = () => new Date().toLocaleDateString('en-CA');
 const thisMonth = () => clientToday().slice(0, 7);
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const HOLIDAY_TYPE_LABEL: Record<string, string> = {
+  mandatory_holiday: 'Mandatory Holiday',
+  optional_holiday: 'Optional Holiday',
+};
+
+interface Holiday {
+  id: string;
+  day: string;
+  name: string;
+  type: 'mandatory_holiday' | 'optional_holiday';
+}
+
+interface Birthday {
+  fullName: string;
+  photoUrl: string | null;
+  dateOfBirth: string;
+}
 
 /** Shift a YYYY-MM key by a number of months. */
 function shiftMonth(ym: string, delta: number): string {
@@ -20,20 +41,103 @@ function shiftMonth(ym: string, delta: number): string {
 export function Attendance() {
   const user = useAuth((s) => s.user)!;
   const [ym, setYm] = useState(thisMonth());
+  const [selectedHoliday, setSelectedHoliday] = useState<DayInfo | null>(null);
 
   const monthQ = useQuery({
     queryKey: ['attendance', user.id, ym],
     queryFn: () => api.get<{ month: string; days: DayInfo[] }>(`/attendance/${user.id}?month=${ym}`),
   });
 
+  const holidaysQ = useQuery({
+    queryKey: ['holidays'],
+    queryFn: () => api.get<{ holidays: Holiday[] }>('/holidays'),
+  });
+
+  const birthdaysQ = useQuery({
+    queryKey: ['birthdays'],
+    queryFn: () => api.get<{ birthdays: Birthday[] }>('/profiles/birthdays'),
+  });
+
   const days = monthQ.data?.days ?? [];
   const firstWeekday = days[0] ? new Date(`${days[0].day}T00:00:00`).getDay() : 0;
-  // Don't allow browsing beyond the current month (no data exists yet).
-  const atCurrentMonth = ym >= thisMonth();
+
+  const holidays = holidaysQ.data?.holidays ?? [];
+  const monthHolidays = holidays.filter((h) => h.day.slice(0, 7) === ym);
+  const mandatoryHolidays = monthHolidays.filter((h) => h.type === 'mandatory_holiday');
+  const optionalHolidays = monthHolidays.filter((h) => h.type === 'optional_holiday');
+
+  const todayMd = clientToday().slice(5); // 'MM-DD'
+  const birthdays = (birthdaysQ.data?.birthdays ?? [])
+    .filter((b) => b.dateOfBirth.slice(5, 7) === ym.slice(5, 7))
+    .sort((a, b) => Number(a.dateOfBirth.slice(8, 10)) - Number(b.dateOfBirth.slice(8, 10)));
+
+  const hasSummary =
+    mandatoryHolidays.length > 0 || optionalHolidays.length > 0 || birthdays.length > 0;
+
+  // Resolve the selected holiday's name/type, falling back to the holidays query by day.
+  const selectedMatch = selectedHoliday
+    ? holidays.find((h) => h.day === selectedHoliday.day)
+    : undefined;
+  const selectedName = selectedHoliday?.holidayName ?? selectedMatch?.name ?? 'Holiday';
+  const selectedType =
+    HOLIDAY_TYPE_LABEL[selectedHoliday?.dayType ?? ''] ??
+    (selectedMatch ? HOLIDAY_TYPE_LABEL[selectedMatch.type] : undefined) ??
+    'Holiday';
 
   return (
     <div className="flex flex-col gap-5 pt-1">
-      <Section title="Your attendance">
+      <Section title="Your calendar">
+        {hasSummary && (
+          <Card className="flex flex-col gap-4">
+            {mandatoryHolidays.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[13px] font-semibold text-muted">Mandatory Holidays</p>
+                {mandatoryHolidays.map((h) => (
+                  <p key={h.id} className="text-[13px] text-ink/80">
+                    {`${fmtDate(h.day)} — ${h.name}`}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {optionalHolidays.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[13px] font-semibold text-muted">Optional Holidays</p>
+                {optionalHolidays.map((h) => (
+                  <p key={h.id} className="text-[13px] text-ink/80">
+                    {`${fmtDate(h.day)} — ${h.name}`}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {birthdays.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[13px] font-semibold text-muted">Birthdays 🎂</p>
+                {birthdays.map((b) => {
+                  const firstName = b.fullName.split(' ')[0];
+                  const dayMonth = new Date(`${b.dateOfBirth}T00:00:00`).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                  });
+                  const isBirthdayToday = b.dateOfBirth.slice(5) === todayMd;
+                  return (
+                    <p
+                      key={`${b.fullName}-${b.dateOfBirth}`}
+                      className={`flex items-center gap-2 text-[13px] ${
+                        isBirthdayToday ? 'text-sunny' : 'text-ink/80'
+                      }`}
+                    >
+                      <span>{`${firstName} — ${dayMonth}`}</span>
+                      {isBirthdayToday && <Pill tone="sunny">Today</Pill>}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
+
         <Card className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <button
@@ -48,8 +152,7 @@ export function Attendance() {
             </p>
             <button
               onClick={() => setYm((m) => shiftMonth(m, 1))}
-              disabled={atCurrentMonth}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-muted transition hover:text-ink disabled:opacity-30"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-muted transition hover:text-ink"
               aria-label="Next month"
             >
               <IconChevronLeft className="rotate-180" />
@@ -69,7 +172,12 @@ export function Attendance() {
                 <div key={`b${i}`} />
               ))}
               {days.map((d) => (
-                <DayChip key={d.day} d={d} isToday={d.day === clientToday()} />
+                <DayChip
+                  key={d.day}
+                  d={d}
+                  isToday={d.day === clientToday()}
+                  onSelect={setSelectedHoliday}
+                />
               ))}
             </div>
           )}
@@ -84,6 +192,20 @@ export function Attendance() {
         <Legend color="bg-sunny" label="Holiday" />
         <Legend color="bg-white/10" label="Weekly off" />
       </div>
+
+      <Link
+        to="/holidays"
+        className="flex items-center justify-center rounded-2xl border border-white/10 py-3 text-sm text-[#c9beff] transition hover:brightness-110"
+      >
+        View the full holiday calendar →
+      </Link>
+
+      <Modal open={!!selectedHoliday} onClose={() => setSelectedHoliday(null)} title="Holiday">
+        <div className="flex flex-col gap-1">
+          <p className="font-display text-lg font-bold text-ink">{selectedName}</p>
+          <p className="text-[13px] text-muted">{selectedType}</p>
+        </div>
+      </Modal>
     </div>
   );
 }

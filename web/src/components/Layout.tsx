@@ -10,12 +10,13 @@ import {
   IconUser,
 } from './Icons';
 import { api } from '@/lib/api';
+import { BreakMonitor } from './BreakMonitor';
 
 const tabs = [
   { to: '/', label: 'Home', Icon: IconHome, end: true },
   { to: '/tasks', label: 'Tasks', Icon: IconTasks, end: false },
   { to: '/campaigns', label: 'Campaigns', Icon: IconCampaign, end: false },
-  { to: '/attendance', label: 'Attendance', Icon: IconCalendar, end: false },
+  { to: '/calendar', label: 'Calendar', Icon: IconCalendar, end: false },
   { to: '/profile', label: 'Profile', Icon: IconUser, end: false },
 ];
 
@@ -47,6 +48,9 @@ export function Layout() {
       <main className="flex-1 px-4 pb-28 pt-2">
         <Outlet />
       </main>
+
+      <BreakMonitor />
+
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md items-center justify-around border-t border-white/10 bg-surface/95 px-2 pt-2 backdrop-blur">
         {tabs.map(({ to, label, Icon, end }) => (

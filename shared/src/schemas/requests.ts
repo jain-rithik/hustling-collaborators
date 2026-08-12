@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { clockTime, email, geoPoint, isoDate, uuid } from './common.js';
 import {
   ATTENDANCE_STATUSES,
+  BEREAVEMENT_RELATIONSHIPS,
+  BREAK_TYPES,
   EMPLOYMENT_TYPES,
   LEAVE_TYPES,
   MEME_EVENT_KEYS,
@@ -78,6 +80,9 @@ export const overrideAttendanceSchema = z.object({
   note: z.string().optional(),
 });
 
+// ── Breaks (lunch / tea) ─────────────────────────────────────────────────────
+export const startBreakSchema = z.object({ type: z.enum(BREAK_TYPES) });
+
 // ── Leave ────────────────────────────────────────────────────────────────────
 export const createLeaveSchema = z
   .object({
@@ -88,10 +93,18 @@ export const createLeaveSchema = z
     // For a half-day: the hours actually worked around it (HH:mm) — captured on the request.
     halfDayArrival: clockTime.nullable().optional(),
     halfDayLeave: clockTime.nullable().optional(),
+    // A Paid-Leave request the employee flags as sick — waives the 5-day rule (server enforces the 9:30 cutoff).
+    isSick: z.boolean().default(false),
+    // Required when leaveType === 'bereavement'; visible only to RM + Admin.
+    bereavementRelationship: z.enum(BEREAVEMENT_RELATIONSHIPS).nullable().optional(),
     reason: z.string().min(1),
     allowAdvance: z.boolean().default(false),
   })
-  .refine((v) => v.endDate >= v.startDate, { message: 'endDate must be on/after startDate', path: ['endDate'] });
+  .refine((v) => v.endDate >= v.startDate, { message: 'endDate must be on/after startDate', path: ['endDate'] })
+  .refine((v) => v.leaveType !== 'bereavement' || !!v.bereavementRelationship, {
+    message: 'Please select your relationship to the deceased',
+    path: ['bereavementRelationship'],
+  });
 export const decideRequestSchema = z.object({ note: z.string().optional() });
 export const manualLeaveSchema = z.object({
   userId: uuid,
