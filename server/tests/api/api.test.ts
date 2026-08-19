@@ -326,6 +326,45 @@ describe.skipIf(!RUN)('API integration', () => {
     });
   });
 
+  describe('optional holiday claims (v3)', () => {
+    it('must land on a real optional holiday and respects the 2-per-FY cap', async () => {
+      const m2T = await login(app, fx.member2);
+      // Two optional holidays + one mandatory, inside the same financial year (Apr–Mar).
+      const oh1 = '2026-10-20';
+      const oh2 = '2026-11-14';
+      const mandatory = '2026-12-25';
+      await prisma.holiday.createMany({
+        data: [
+          { day: new Date(`${oh1}T00:00:00Z`), name: 'Diwali (optional)', type: 'optional_holiday' },
+          { day: new Date(`${oh2}T00:00:00Z`), name: 'Chhath (optional)', type: 'optional_holiday' },
+          { day: new Date(`${mandatory}T00:00:00Z`), name: 'Christmas', type: 'mandatory_holiday' },
+        ],
+        skipDuplicates: true,
+      });
+
+      const claim = (day: string) =>
+        request(app)
+          .post('/api/v1/leave/requests')
+          .set(auth(m2T))
+          .send({ leaveType: 'optional_holiday', startDate: day, endDate: day, reason: 'Optional holiday' });
+
+      // A plain working day is not claimable as an optional holiday.
+      expect((await claim('2026-10-21')).status).toBe(400);
+      // Neither is a mandatory holiday.
+      expect((await claim(mandatory)).status).toBe(400);
+      // The two real optional holidays are fine…
+      expect((await claim(oh1)).status).toBe(201);
+      expect((await claim(oh2)).status).toBe(201);
+      // …but a third claim in the same FY exceeds the cap.
+      await prisma.holiday.create({
+        data: { day: new Date('2027-01-26T00:00:00Z'), name: 'Republic Day (optional)', type: 'optional_holiday' },
+      });
+      const third = await claim('2027-01-26');
+      expect(third.status).toBe(400);
+      expect(third.body.error.message).toMatch(/already used/i);
+    });
+  });
+
   describe('admin pending-requests view (v2 §05)', () => {
     it('aggregates pending leave + comp-off, admin only', async () => {
       const res = await request(app).get('/api/v1/admin/pending-requests').set(auth(founderT));

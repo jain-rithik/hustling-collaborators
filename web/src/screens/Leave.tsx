@@ -30,6 +30,13 @@ interface LeaveRequest {
   status: string;
 }
 
+interface Holiday {
+  id: string;
+  day: string;
+  name: string;
+  type: 'mandatory_holiday' | 'optional_holiday';
+}
+
 const STATUS_TONE: Record<string, 'mint' | 'coral' | 'sunny' | 'default'> = {
   approved: 'mint',
   rejected: 'coral',
@@ -117,14 +124,57 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [halfDayLeave, setHalfDayLeave] = useState('14:00');
   const [isSick, setIsSick] = useState(false);
   const [bereavementRelationship, setBereavementRelationship] = useState<BereavementRelationship | ''>('');
+  const [optionalHolidayId, setOptionalHolidayId] = useState('');
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
 
+  // An optional-holiday leave is claimed against a specific holiday, so offer the list to pick from.
+  const holidaysQ = useQuery({
+    queryKey: ['holidays'],
+    queryFn: () => api.get<{ holidays: Holiday[] }>('/holidays'),
+    enabled: open,
+  });
+  const today = new Date().toLocaleDateString('en-CA');
+  const optionalHolidays = (holidaysQ.data?.holidays ?? []).filter(
+    (h) => h.type === 'optional_holiday' && h.day >= today,
+  );
+  const chosenHoliday = optionalHolidays.find((h) => h.id === optionalHolidayId);
+
+  // Bereavement and optional-holiday requests carry their own context (relationship / the holiday
+  // itself), so neither shows a half-day tick or a free-text reason — the reason is derived.
+  const isBereavement = leaveType === 'bereavement';
+  const isOptionalHoliday = leaveType === 'optional_holiday';
+  const showHalfDay = !isBereavement && !isOptionalHoliday && leaveType !== 'wfh';
+  const showReason = !isBereavement && !isOptionalHoliday;
+  const showDates = !isOptionalHoliday; // picking the holiday fixes the date
+
   function changeType(next: LeaveType) {
     setLeaveType(next);
+    setErr('');
     if (next !== 'pl') setIsSick(false);
     if (next !== 'bereavement') setBereavementRelationship('');
-    if (next === 'wfh') setIsHalfDay(false);
+    if (next !== 'optional_holiday') setOptionalHolidayId('');
+    if (next === 'bereavement' || next === 'optional_holiday' || next === 'wfh') setIsHalfDay(false);
+  }
+
+  function pickOptionalHoliday(id: string) {
+    setOptionalHolidayId(id);
+    const h = optionalHolidays.find((x) => x.id === id);
+    if (h) {
+      setStartDate(h.day);
+      setEndDate(h.day);
+    }
+  }
+
+  /** Bereavement / optional-holiday requests derive their reason from the selection made above. */
+  function resolveReason(): string {
+    if (isBereavement) {
+      return bereavementRelationship
+        ? `Bereavement — ${BEREAVEMENT_RELATIONSHIP_LABELS[bereavementRelationship]}`
+        : 'Bereavement';
+    }
+    if (isOptionalHoliday) return `Optional holiday — ${chosenHoliday?.name ?? ''}`.trim();
+    return reason;
   }
 
   const create = useMutation({
@@ -132,13 +182,13 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
       api.post('/leave/requests', {
         leaveType,
         startDate,
-        endDate: isHalfDay ? startDate : endDate || startDate,
+        endDate: isHalfDay || isOptionalHoliday ? startDate : endDate || startDate,
         isHalfDay,
         halfDayArrival: isHalfDay ? halfDayArrival : undefined,
         halfDayLeave: isHalfDay ? halfDayLeave : undefined,
         isSick: leaveType === 'pl' ? isSick : false,
-        bereavementRelationship: leaveType === 'bereavement' ? bereavementRelationship : undefined,
-        reason,
+        bereavementRelationship: isBereavement ? bereavementRelationship : undefined,
+        reason: resolveReason(),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['leave'] });
@@ -150,12 +200,20 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   function submit(e: FormEvent) {
     e.preventDefault();
     setErr('');
-    if (!startDate || !reason) {
-      setErr('Please choose a date and add a reason.');
+    if (isOptionalHoliday && !optionalHolidayId) {
+      setErr('Please choose which optional holiday you would like to take.');
       return;
     }
-    if (leaveType === 'bereavement' && !bereavementRelationship) {
+    if (isBereavement && !bereavementRelationship) {
       setErr('Please select your relationship to the deceased.');
+      return;
+    }
+    if (!startDate) {
+      setErr('Please choose a date.');
+      return;
+    }
+    if (showReason && !reason) {
+      setErr('Please add a reason.');
       return;
     }
     create.mutate();
@@ -182,6 +240,7 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
             <p className="mt-1 text-[12px] text-muted">Work-from-home must be requested at least 24 hours in advance.</p>
           )}
         </div>
+
         {leaveType === 'pl' && (
           <div>
             <label className="flex items-center gap-2 text-sm text-muted">
@@ -194,7 +253,8 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
             )}
           </div>
         )}
-        {leaveType === 'bereavement' && (
+
+        {isBereavement && (
           <div>
             <label className="label">Relationship to Deceased</label>
             <select
@@ -214,44 +274,72 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
             <p className="mt-1 text-[12px] text-muted">Bereavement leave is up to 3 working days.</p>
           </div>
         )}
-        {leaveType !== 'wfh' && (
+
+        {isOptionalHoliday && (
+          <div>
+            <label className="label">Which optional holiday?</label>
+            <select className="input" value={optionalHolidayId} onChange={(e) => pickOptionalHoliday(e.target.value)}>
+              <option value="" disabled>
+                — Select —
+              </option>
+              {optionalHolidays.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {`${h.name} — ${fmtDate(h.day)}`}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[12px] text-muted">
+              {optionalHolidays.length === 0
+                ? 'No optional holidays are coming up.'
+                : 'You may take up to 2 optional holidays in a financial year.'}
+            </p>
+          </div>
+        )}
+
+        {showHalfDay && (
           <label className="flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={isHalfDay} onChange={(e) => setIsHalfDay(e.target.checked)} /> Half day
           </label>
         )}
-        {isHalfDay ? (
-          <>
-            <div>
-              <label className="label">Date</label>
-              <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
+
+        {showDates &&
+          (isHalfDay ? (
+            <>
+              <div>
+                <label className="label">Date</label>
+                <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label">Arrival time</label>
+                  <input className="input" type="time" value={halfDayArrival} onChange={(e) => setHalfDayArrival(e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">Leaving time</label>
+                  <input className="input" type="time" value={halfDayLeave} onChange={(e) => setHalfDayLeave(e.target.value)} />
+                </div>
+              </div>
+            </>
+          ) : (
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="label">Arrival time</label>
-                <input className="input" type="time" value={halfDayArrival} onChange={(e) => setHalfDayArrival(e.target.value)} />
+                <label className="label">From</label>
+                <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div>
-                <label className="label">Leaving time</label>
-                <input className="input" type="time" value={halfDayLeave} onChange={(e) => setHalfDayLeave(e.target.value)} />
+                <label className="label">To</label>
+                <input className="input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
-          </>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="label">From</label>
-              <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">To</label>
-              <input className="input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
+          ))}
+
+        {showReason && (
+          <div>
+            <label className="label">Reason</label>
+            <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Eg. Family Function" />
           </div>
         )}
-        <div>
-          <label className="label">Reason</label>
-          <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Eg. Family Function" />
-        </div>
+
         {err && <p className="text-sm text-coral">{err}</p>}
         <Button type="submit" disabled={create.isPending}>
           {create.isPending ? 'Sending…' : 'Submit request'}

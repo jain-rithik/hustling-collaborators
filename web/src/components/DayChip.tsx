@@ -1,4 +1,4 @@
-/** Calendar day chip, colour-coded: teal=on-time, coral=late, lavender=WFH/half-day, amber=holiday, grey=off. */
+/** Calendar day chip, colour-coded: teal=on-time, coral=late, blue=half-day, pink=WFH, amber=holiday, grey=off. */
 export interface DayInfo {
   day: string;
   dayType: string;
@@ -37,13 +37,13 @@ export function DayChip({
       text = 'text-coral';
       break;
     case 'wfh':
-      bg = 'bg-lavender/25';
-      text = 'text-lavender';
+      bg = 'bg-wfh/25';
+      text = 'text-wfh';
       label = 'WFH';
       break;
     case 'half_day':
-      bg = 'bg-lavender/25';
-      text = 'text-lavender';
+      bg = 'bg-halfday/25';
+      text = 'text-halfday';
       label = 'Half';
       break;
     case 'on_leave':
@@ -52,8 +52,10 @@ export function DayChip({
       label = 'Leave';
       break;
     case 'absent':
-      bg = 'bg-coral/10';
-      text = 'text-coral/70';
+      // Nothing was logged that day. Kept deliberately neutral — the calendar's legend has no
+      // "absent" colour, and washing past days in red would be punitive (PRD §6 tone principles).
+      bg = 'bg-white/[0.04]';
+      text = 'text-muted';
       break;
     case 'holiday':
     case 'weekend_off':
@@ -68,8 +70,8 @@ export function DayChip({
         text = 'text-muted/60';
         label = 'Off';
       } else if (d.dayType === 'second_saturday') {
-        bg = 'bg-lavender/15';
-        text = 'text-lavender/80';
+        bg = 'bg-wfh/15';
+        text = 'text-wfh/80';
         label = 'WFH';
       }
       break;
