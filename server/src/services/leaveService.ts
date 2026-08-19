@@ -1,5 +1,11 @@
 import { DateTime } from 'luxon';
-import { BEREAVEMENT_MAX_DAYS, IST_TZ, LEAVE_TYPE_LABELS, type LeaveType } from '@hc/shared';
+import {
+  BEREAVEMENT_MAX_DAYS,
+  IST_TZ,
+  LEAVE_TYPE_LABELS,
+  type LeaveType,
+  OPTIONAL_HOLIDAY_CAP_PER_FY,
+} from '@hc/shared';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
@@ -8,7 +14,9 @@ import { systemClock } from '../lib/clock.js';
 import { notify, notifyMany } from '../lib/notify.js';
 import {
   applyLeaveDeduction,
+  canClaimOptionalHoliday,
   computeBalance,
+  financialYear,
   isLongLeave,
   longLeaveNeedsReview,
   plWithinAdvanceWindow,
@@ -200,6 +208,28 @@ export const leaveService = {
     // Bereavement is capped at 3 working days (v2 §05).
     if (input.leaveType === 'bereavement' && days > BEREAVEMENT_MAX_DAYS) {
       throw badRequest(`Bereavement leave is capped at ${BEREAVEMENT_MAX_DAYS} working days.`);
+    }
+    // An optional-holiday claim must land on a real optional holiday and stay inside the FY cap
+    // (domain-rules §15) — the client picks from the list, this guards the API directly.
+    if (input.leaveType === 'optional_holiday') {
+      const holiday = await prisma.holiday.findUnique({ where: { day: isoToDbDate(input.startDate) } });
+      if (!holiday || holiday.type !== 'optional_holiday') {
+        throw badRequest('Please choose one of the listed optional holidays.');
+      }
+      const fy = financialYear(input.startDate);
+      const used = await prisma.leaveRequest.count({
+        where: {
+          userId: viewer.id,
+          leaveType: 'optional_holiday',
+          status: { in: ['pending', 'approved'] },
+          startDate: { gte: isoToDbDate(fy.fyStart), lte: isoToDbDate(fy.fyEnd) },
+        },
+      });
+      if (!canClaimOptionalHoliday(used)) {
+        throw badRequest(
+          `You have already used your ${OPTIONAL_HOLIDAY_CAP_PER_FY} optional holidays for this financial year.`,
+        );
+      }
     }
 
     // Advance-notice rules convert paid leave to LWP when applied too late.

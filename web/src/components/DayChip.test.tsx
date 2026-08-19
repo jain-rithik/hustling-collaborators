@@ -30,6 +30,18 @@ describe('DayChip', () => {
     expect(container.querySelector('[title="Diwali"]')).not.toBeNull();
   });
 
+  it('colours a half-day blue and a WFH day pink (v3 feedback)', () => {
+    const { container: half } = render(<DayChip d={day({ status: 'half_day' })} isToday={false} />);
+    expect(half.querySelector('.bg-halfday\\/25')).not.toBeNull();
+    const { container: wfh } = render(<DayChip d={day({ status: 'wfh' })} isToday={false} />);
+    expect(wfh.querySelector('.bg-wfh\\/25')).not.toBeNull();
+  });
+
+  it('keeps an unrecorded (absent) day neutral rather than red', () => {
+    const { container } = render(<DayChip d={day({ status: 'absent' })} isToday={false} />);
+    expect(container.querySelector('[class*="bg-coral"]')).toBeNull();
+  });
+
   it('labels an approved leave day', () => {
     render(<DayChip d={day({ status: 'on_leave', dayType: 'office' })} isToday={false} />);
     expect(screen.getByText(/leave/i)).toBeInTheDocument();

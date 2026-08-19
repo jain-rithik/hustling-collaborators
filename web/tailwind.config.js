@@ -5,15 +5,17 @@ export default {
     extend: {
       colors: {
         // PRD §6.2 palette, single-sourced from CSS variables in theme/tokens.css
-        bg: 'var(--bg-deep-space)',
-        surface: 'var(--surface-dark-lifted)',
-        primary: 'var(--primary-electric-purple)',
-        coral: 'var(--campaign-hot-coral)',
-        mint: 'var(--campaign-teal-mint)',
-        sunny: 'var(--campaign-sunny-yellow)',
-        lavender: 'var(--campaign-soft-lavender)',
-        ink: 'var(--text-near-white)',
-        muted: 'var(--text-muted-lavender)',
+        bg: 'rgb(var(--rgb-bg-deep-space) / <alpha-value>)',
+        surface: 'rgb(var(--rgb-surface-dark-lifted) / <alpha-value>)',
+        primary: 'rgb(var(--rgb-primary-electric-purple) / <alpha-value>)',
+        coral: 'rgb(var(--rgb-campaign-hot-coral) / <alpha-value>)',
+        mint: 'rgb(var(--rgb-campaign-teal-mint) / <alpha-value>)',
+        sunny: 'rgb(var(--rgb-campaign-sunny-yellow) / <alpha-value>)',
+        lavender: 'rgb(var(--rgb-campaign-soft-lavender) / <alpha-value>)',
+        halfday: 'rgb(var(--rgb-status-half-day) / <alpha-value>)',
+        wfh: 'rgb(var(--rgb-status-wfh) / <alpha-value>)',
+        ink: 'rgb(var(--rgb-text-near-white) / <alpha-value>)',
+        muted: 'rgb(var(--rgb-text-muted-lavender) / <alpha-value>)',
       },
       fontFamily: {
         display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],

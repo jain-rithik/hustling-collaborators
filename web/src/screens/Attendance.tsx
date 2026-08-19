@@ -71,9 +71,6 @@ export function Attendance() {
     .filter((b) => b.dateOfBirth.slice(5, 7) === ym.slice(5, 7))
     .sort((a, b) => Number(a.dateOfBirth.slice(8, 10)) - Number(b.dateOfBirth.slice(8, 10)));
 
-  const hasSummary =
-    mandatoryHolidays.length > 0 || optionalHolidays.length > 0 || birthdays.length > 0;
-
   // Resolve the selected holiday's name/type, falling back to the holidays query by day.
   const selectedMatch = selectedHoliday
     ? holidays.find((h) => h.day === selectedHoliday.day)
@@ -86,58 +83,8 @@ export function Attendance() {
 
   return (
     <div className="flex flex-col gap-5 pt-1">
+      {/* Order (v3 feedback): calendar → colour meanings → this month → full holiday list. */}
       <Section title="Your calendar">
-        {hasSummary && (
-          <Card className="flex flex-col gap-4">
-            {mandatoryHolidays.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[13px] font-semibold text-muted">Mandatory Holidays</p>
-                {mandatoryHolidays.map((h) => (
-                  <p key={h.id} className="text-[13px] text-ink/80">
-                    {`${fmtDate(h.day)} — ${h.name}`}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            {optionalHolidays.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[13px] font-semibold text-muted">Optional Holidays</p>
-                {optionalHolidays.map((h) => (
-                  <p key={h.id} className="text-[13px] text-ink/80">
-                    {`${fmtDate(h.day)} — ${h.name}`}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            {birthdays.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[13px] font-semibold text-muted">Birthdays 🎂</p>
-                {birthdays.map((b) => {
-                  const firstName = b.fullName.split(' ')[0];
-                  const dayMonth = new Date(`${b.dateOfBirth}T00:00:00`).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short',
-                  });
-                  const isBirthdayToday = b.dateOfBirth.slice(5) === todayMd;
-                  return (
-                    <p
-                      key={`${b.fullName}-${b.dateOfBirth}`}
-                      className={`flex items-center gap-2 text-[13px] ${
-                        isBirthdayToday ? 'text-sunny' : 'text-ink/80'
-                      }`}
-                    >
-                      <span>{`${firstName} — ${dayMonth}`}</span>
-                      {isBirthdayToday && <Pill tone="sunny">Today</Pill>}
-                    </p>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-        )}
-
         <Card className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <button
@@ -172,26 +119,69 @@ export function Attendance() {
                 <div key={`b${i}`} />
               ))}
               {days.map((d) => (
-                <DayChip
-                  key={d.day}
-                  d={d}
-                  isToday={d.day === clientToday()}
-                  onSelect={setSelectedHoliday}
-                />
+                <DayChip key={d.day} d={d} isToday={d.day === clientToday()} onSelect={setSelectedHoliday} />
               ))}
             </div>
           )}
         </Card>
+
+        <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-2xl border border-white/10 p-4 text-[12px] text-muted">
+          <Legend color="bg-mint" label="On time" />
+          <Legend color="bg-coral" label="Late" />
+          <Legend color="bg-halfday" label="Half day" />
+          <Legend color="bg-wfh" label="WFH" />
+          <Legend color="bg-primary" label="On leave" />
+          <Legend color="bg-sunny" label="Holiday" />
+        </div>
       </Section>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-2xl border border-white/10 p-4 text-[12px] text-muted">
-        <Legend color="bg-mint" label="On time" />
-        <Legend color="bg-coral" label="Late" />
-        <Legend color="bg-lavender" label="WFH / half-day" />
-        <Legend color="bg-primary" label="On leave" />
-        <Legend color="bg-sunny" label="Holiday" />
-        <Legend color="bg-white/10" label="Weekly off" />
-      </div>
+      {mandatoryHolidays.length > 0 && (
+        <Section title="Mandatory Holidays This Month">
+          <Card className="flex flex-col gap-1.5">
+            {mandatoryHolidays.map((h) => (
+              <p key={h.id} className="text-[13px] text-ink/80">
+                {`${fmtDate(h.day)} — ${h.name}`}
+              </p>
+            ))}
+          </Card>
+        </Section>
+      )}
+
+      {optionalHolidays.length > 0 && (
+        <Section title="Optional Holidays This Month">
+          <Card className="flex flex-col gap-1.5">
+            {optionalHolidays.map((h) => (
+              <p key={h.id} className="text-[13px] text-ink/80">
+                {`${fmtDate(h.day)} — ${h.name}`}
+              </p>
+            ))}
+          </Card>
+        </Section>
+      )}
+
+      {birthdays.length > 0 && (
+        <Section title="Birthdays This Month 🎂">
+          <Card className="flex flex-col gap-1.5">
+            {birthdays.map((b) => {
+              const firstName = b.fullName.split(' ')[0];
+              const dayMonth = new Date(`${b.dateOfBirth}T00:00:00`).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+              });
+              const isBirthdayToday = b.dateOfBirth.slice(5) === todayMd;
+              return (
+                <p
+                  key={`${b.fullName}-${b.dateOfBirth}`}
+                  className={`flex items-center gap-2 text-[13px] ${isBirthdayToday ? 'text-sunny' : 'text-ink/80'}`}
+                >
+                  <span>{`${firstName} — ${dayMonth}`}</span>
+                  {isBirthdayToday && <Pill tone="sunny">Today</Pill>}
+                </p>
+              );
+            })}
+          </Card>
+        </Section>
+      )}
 
       <Link
         to="/holidays"

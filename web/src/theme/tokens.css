@@ -14,6 +14,25 @@
   --text-near-white: #f0eff8;
   --text-muted-lavender: #9896a8;
 
+  /* Calendar status accents (v3 feedback): half-day = blue, work-from-home = pink. */
+  --status-half-day: #4aa8ff;
+  --status-wfh: #ff7bc8;
+
+  /* Same palette as raw RGB channels. Tailwind cannot apply an opacity modifier
+     (bg-mint/20) to a full var() colour, so the tinted backgrounds the design uses
+     are built from these via rgb(var(--x) / <alpha-value>). */
+  --rgb-bg-deep-space: 15 14 23;
+  --rgb-surface-dark-lifted: 28 26 46;
+  --rgb-primary-electric-purple: 123 97 255;
+  --rgb-campaign-hot-coral: 255 107 107;
+  --rgb-campaign-teal-mint: 0 212 170;
+  --rgb-campaign-sunny-yellow: 255 214 10;
+  --rgb-campaign-soft-lavender: 196 181 253;
+  --rgb-text-near-white: 240 239 248;
+  --rgb-text-muted-lavender: 152 150 168;
+  --rgb-status-half-day: 74 168 255;
+  --rgb-status-wfh: 255 123 200;
+
   --radius-card: 18px;
   color-scheme: dark;
 }
