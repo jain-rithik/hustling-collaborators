@@ -2,11 +2,17 @@ name: Break sweep
 
 # Backstop for long-break alerts (v2 change log §02). While an employee's app is open it polls
 # /breaks/today and alerts fire in near real time; this sweep covers the case where they close the
-# app mid-break so managers are still notified. GitHub cron is best-effort (~every 15 min).
-# Requires repo secrets API_URL (Render base URL) and JOB_SECRET (matching the server env).
+# app mid-break so managers are still notified.
+#
+# Runs every 15 min during working hours only — Mon-Sat, 04:00-14:59 UTC (09:30-20:29 IST).
+# Breaks only happen in the workday, and a 24/7 ping would also keep the Render free instance
+# awake permanently, burning most of its 750 free instance-hours a month.
+#
+# Requires the same API_URL / JOB_SECRET repo secrets as the "Scheduled jobs" workflow; without
+# them the run is skipped with a warning instead of failing.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/15 4-14 * * 1-6'
   workflow_dispatch:
 
 jobs:
@@ -18,7 +24,12 @@ jobs:
           API_URL: ${{ secrets.API_URL }}
           JOB_SECRET: ${{ secrets.JOB_SECRET }}
         run: |
+          if [ -z "$API_URL" ] || [ -z "$JOB_SECRET" ]; then
+            echo "::warning title=Break sweep is not configured::Set the API_URL and JOB_SECRET repository secrets to enable long-break alerts when an employee's app is closed. Skipping this run."
+            exit 0
+          fi
           set -e
-          curl -fsS -X POST "$API_URL/api/v1/internal/jobs/break-sweep" \
+          curl -fsS --max-time 120 --retry 4 --retry-delay 15 --retry-all-errors \
+            -X POST "${API_URL%/}/api/v1/internal/jobs/break-sweep" \
             -H "Authorization: Bearer $JOB_SECRET"
           echo

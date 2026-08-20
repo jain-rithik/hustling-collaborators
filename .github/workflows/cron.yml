@@ -1,8 +1,13 @@
 name: Scheduled jobs
 
 # Nightly at 00:00 IST (18:30 UTC): flag overdue campaigns, refresh the leaderboard,
-# and post any due leave accrual (all idempotent + self-healing). Requires two repo
-# secrets: API_URL (the Render base URL) and JOB_SECRET (matching the server env).
+# and post any due leave accrual (all idempotent + self-healing).
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   API_URL     the Render base URL, e.g. https://hc-api-yc66.onrender.com
+#   JOB_SECRET  must MATCH the JOB_SECRET on the Render service (Render generated it,
+#               so copy it from Render → hc-api → Environment).
+# Without them the run is skipped with a warning rather than failing every night.
 on:
   schedule:
     - cron: '30 18 * * *'
@@ -17,10 +22,16 @@ jobs:
           API_URL: ${{ secrets.API_URL }}
           JOB_SECRET: ${{ secrets.JOB_SECRET }}
         run: |
+          if [ -z "$API_URL" ] || [ -z "$JOB_SECRET" ]; then
+            echo "::warning title=Scheduled jobs are not configured::Set the API_URL and JOB_SECRET repository secrets to enable leave accrual, overdue-campaign flagging and leaderboard snapshots. JOB_SECRET must match the value on the Render service. Skipping this run."
+            exit 0
+          fi
           set -e
           for job in flag-overdue monthly-accrual nightly-leaderboard; do
             echo "→ $job"
-            curl -fsS -X POST "$API_URL/api/v1/internal/jobs/$job" \
+            # Retry generously: the Render free tier sleeps when idle and needs ~30-60s to wake.
+            curl -fsS --max-time 120 --retry 4 --retry-delay 15 --retry-all-errors \
+              -X POST "${API_URL%/}/api/v1/internal/jobs/$job" \
               -H "Authorization: Bearer $JOB_SECRET"
             echo
           done
