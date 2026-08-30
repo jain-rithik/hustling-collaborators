@@ -41,9 +41,14 @@ export const ATTENDANCE_STATUSES = [
 ] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-/** Leave categories (PRD §4.3 / §9.8). `pl` = Paid Leave (casual+sick combined). `wfh` = a work-from-home request. */
+/**
+ * Leave categories. `pl` = Privilege Leave (the persisted key predates the v4 rename — the
+ * label, not the key, is what members see). `sick` = Sick Leave, its own entitlement since v4.
+ * `wfh` = a work-from-home request.
+ */
 export const LEAVE_TYPES = [
   'pl',
+  'sick',
   'lwp',
   'comp_off',
   'half_day',
@@ -56,23 +61,25 @@ export const LEAVE_TYPES = [
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
 /**
- * The leave types a member may pick when raising their own request. Maternity/paternity are
- * recorded by an admin (not self-served), and half-days are captured via the `isHalfDay` flag
- * rather than as a leave type — so neither appears in the self-service selector.
+ * The leave types a member may pick when raising their own request, in the order the selector
+ * lists them. Maternity/paternity are recorded by an admin (not self-served), and half-days are
+ * captured via the `isHalfDay` flag rather than as a leave type — so neither appears here.
  */
 export const SELECTABLE_LEAVE_TYPES = [
   'pl',
-  'lwp',
-  'comp_off',
+  'sick',
   'bereavement',
   'optional_holiday',
+  'comp_off',
   'wfh',
+  'lwp',
 ] as const;
 export type SelectableLeaveType = (typeof SELECTABLE_LEAVE_TYPES)[number];
 
 /** Human-friendly display labels for each leave type (UI never shows the raw enum key). */
 export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
-  pl: 'Paid Leave',
+  pl: 'Privilege Leave',
+  sick: 'Sick Leave',
   lwp: 'Leave Without Pay',
   comp_off: 'Comp-off',
   half_day: 'Half Day',
@@ -81,6 +88,31 @@ export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
   paternity: 'Paternity',
   optional_holiday: 'Optional Holiday',
   wfh: 'Work From Home',
+};
+
+/**
+ * The paid leave types (v4). Every one of these is fully paid when the policy conditions are
+ * met; failing a condition converts the request to `lwp` rather than blocking it.
+ */
+export const PAID_LEAVE_TYPES = ['pl', 'sick', 'bereavement', 'optional_holiday'] as const;
+export type PaidLeaveType = (typeof PAID_LEAVE_TYPES)[number];
+
+/**
+ * The two leave types that draw on an entitlement balance. Full-time members hold them as two
+ * separate pools (11 Privilege + 7 Sick per FY); interns share ONE pool of 4 across both.
+ */
+export const ENTITLEMENT_LEAVE_TYPES = ['pl', 'sick'] as const;
+export type EntitlementLeaveType = (typeof ENTITLEMENT_LEAVE_TYPES)[number];
+
+/** Self-declared on a member's own profile (v4). `undisclosed` is always available. */
+export const GENDERS = ['female', 'male', 'non_binary', 'undisclosed'] as const;
+export type Gender = (typeof GENDERS)[number];
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  female: 'Female',
+  male: 'Male',
+  non_binary: 'Non-binary',
+  undisclosed: 'Prefer not to say',
 };
 
 /** Break kinds tracked silently during the workday (v2 change log §02). */
@@ -100,6 +132,7 @@ export const BEREAVEMENT_RELATIONSHIPS = [
   'blood_siblings',
   'children',
   'in_laws',
+  'pet',
 ] as const;
 export type BereavementRelationship = (typeof BEREAVEMENT_RELATIONSHIPS)[number];
 
@@ -110,6 +143,7 @@ export const BEREAVEMENT_RELATIONSHIP_LABELS: Record<BereavementRelationship, st
   blood_siblings: 'Blood Siblings',
   children: 'Children',
   in_laws: 'In-Laws',
+  pet: 'Pet',
 };
 
 /** Approval lifecycle for leave / comp-off requests (PRD §9.4 / §9.8). */

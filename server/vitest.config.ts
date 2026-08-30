@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // The API integration suites share one Postgres database and each truncates it in
+    // beforeAll, so test FILES must not run concurrently.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['src/domain/**/*.ts'],

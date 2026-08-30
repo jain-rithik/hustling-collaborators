@@ -14,6 +14,7 @@ import { Leave } from '@/screens/Leave';
 import { CompOff } from '@/screens/CompOff';
 import { Notifications } from '@/screens/Notifications';
 import { Admin } from '@/screens/Admin';
+import { AdminMember } from '@/screens/AdminMember';
 
 function Protected() {
   const status = useAuth((s) => s.status);
@@ -24,6 +25,11 @@ function Protected() {
 function AdminOnly() {
   const isAdmin = useAuth((s) => s.user?.isAdmin);
   return isAdmin ? <Admin /> : <Navigate to="/" replace />;
+}
+
+function AdminMemberOnly() {
+  const isAdmin = useAuth((s) => s.user?.isAdmin);
+  return isAdmin ? <AdminMember /> : <Navigate to="/" replace />;
 }
 
 export const router = createBrowserRouter([
@@ -46,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'comp-off', element: <CompOff /> },
       { path: 'notifications', element: <Notifications /> },
       { path: 'admin', element: <AdminOnly /> },
+      { path: 'admin/member/:userId', element: <AdminMemberOnly /> },
     ],
   },
 ]);

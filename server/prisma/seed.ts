@@ -247,7 +247,7 @@ async function seedPeople() {
             userId,
             effectiveDate: asDate(e.effectiveDate),
             entryType: e.entryType,
-            leaveType: e.entryType === 'expiry' ? null : 'pl',
+            leaveType: e.leaveType,
             amount: e.amount,
             balanceAfter: e.balanceAfter,
             note: e.note,

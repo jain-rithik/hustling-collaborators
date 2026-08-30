@@ -5,6 +5,7 @@ import {
   BEREAVEMENT_RELATIONSHIPS,
   BREAK_TYPES,
   EMPLOYMENT_TYPES,
+  GENDERS,
   LEAVE_TYPES,
   MEME_EVENT_KEYS,
   USER_ROLES,
@@ -21,12 +22,43 @@ export const createProfileSchema = z.object({
   dateOfBirth: isoDate.optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
+  gender: z.enum(GENDERS).optional(),
   salaryAmount: z.number().nonnegative().optional(),
   reportingManagerId: uuid.optional(),
   role: z.enum(USER_ROLES).default('team_member'),
 });
 export const updateProfileSchema = createProfileSchema.partial().omit({ password: true });
 export const deleteProfileSchema = z.object({ confirmName: z.string().min(1) });
+
+/**
+ * The slice of their own profile a member may edit (v4 change log). Salary, role, reporting
+ * manager and notice period stay Admin-only; the joining date is editable here but only ever
+ * VISIBLE to the member themselves and to Admin.
+ */
+export const updateOwnProfileSchema = z.object({
+  designation: z.string().max(80).nullable().optional(),
+  dateOfBirth: isoDate.nullable().optional(),
+  joiningDate: isoDate.optional(),
+  gender: z.enum(GENDERS).nullable().optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
+});
+
+/**
+ * Admin places a member on notice (v4 change log). `noticeStartDate` decides whether that
+ * month's accrual is paid (after the 15th) or reversed as unpaid (on/before the 15th);
+ * `noticeLastDate` is their last working day. Passing nulls lifts the notice period.
+ */
+export const setNoticePeriodSchema = z.object({
+  noticeStartDate: isoDate.nullable(),
+  noticeLastDate: isoDate.nullable(),
+});
+
+/** Admin drops an in-app note/alert to one or more team members (v4 change log). */
+export const adminNotifySchema = z.object({
+  userIds: z.array(uuid).min(1),
+  title: z.string().min(1).max(120),
+  body: z.string().min(1).max(1000),
+});
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
 export const createTaskSchema = z.object({
@@ -47,6 +79,8 @@ export const updateTaskSchema = z.object({
   plannedStartTime: clockTime.nullable().optional(),
   plannedEndTime: clockTime.nullable().optional(),
 });
+/** Manual top-to-bottom ordering of a day's tasks — the full list of ids in their new order. */
+export const reorderTasksSchema = z.object({ ids: z.array(uuid).min(1) });
 export const completeTaskSchema = z.object({
   // admin may supply a completion time on behalf; otherwise server uses now
   completedAt: z.string().datetime().optional(),
@@ -69,8 +103,12 @@ export const updateCampaignSchema = z.object({
   leadId: uuid.optional(),
   deadline: isoDate.optional(),
   color: z.string().optional(),
+  /** Replaces the whole team when present. The lead is always kept in the team. */
+  memberIds: z.array(uuid).optional(),
 });
 export const addMemberSchema = z.object({ userId: uuid });
+/** A brief, a Google Sheet link, or any note a member wants on the campaign (v4 change log). */
+export const campaignNoteSchema = z.object({ text: z.string().min(1).max(2000) });
 
 // ── Attendance ───────────────────────────────────────────────────────────────
 export const checkInSchema = geoPoint;
@@ -93,7 +131,10 @@ export const createLeaveSchema = z
     // For a half-day: the hours actually worked around it (HH:mm) — captured on the request.
     halfDayArrival: clockTime.nullable().optional(),
     halfDayLeave: clockTime.nullable().optional(),
-    // A Paid-Leave request the employee flags as sick — waives the 5-day rule (server enforces the 9:30 cutoff).
+    /**
+     * Legacy flag from v2/v3, when sick leave was a tick on a Paid Leave request. Sick leave is
+     * its own type since v4 and the server derives this — kept only so old clients still parse.
+     */
     isSick: z.boolean().default(false),
     // Required when leaveType === 'bereavement'; visible only to RM + Admin.
     bereavementRelationship: z.enum(BEREAVEMENT_RELATIONSHIPS).nullable().optional(),
@@ -105,7 +146,16 @@ export const createLeaveSchema = z
     message: 'Please select your relationship to the deceased',
     path: ['bereavementRelationship'],
   });
-export const decideRequestSchema = z.object({ note: z.string().optional() });
+export const decideRequestSchema = z.object({
+  note: z.string().optional(),
+  /**
+   * Admin-only override applied at approval time: it lets Admin approve, say, a late Privilege
+   * Leave as Privilege Leave even though the policy auto-converted it to Leave Without Pay.
+   */
+  leaveType: z.enum(LEAVE_TYPES).optional(),
+});
+/** Admin re-classifies a still-pending request (v4 change log). */
+export const setLeaveTypeSchema = z.object({ leaveType: z.enum(LEAVE_TYPES) });
 export const manualLeaveSchema = z.object({
   userId: uuid,
   leaveType: z.enum(LEAVE_TYPES),
@@ -119,6 +169,8 @@ export const manualLeaveSchema = z.object({
 export const adjustLeaveSchema = z.object({
   userId: uuid,
   amount: z.number(),
+  /** Which entitlement pool to adjust — Privilege by default. */
+  leaveType: z.enum(['pl', 'sick']).default('pl'),
   note: z.string().min(1),
 });
 

@@ -1,26 +1,57 @@
-import { type FormEvent, useState } from 'react';
+import { type DragEvent, type FormEvent, type ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MemeEventKey } from '@hc/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useToasts } from '@/store/toast';
-import { Button, EmptyState, Section, Spinner } from '@/components/ui';
-import { TaskCard, type TaskDto } from '@/components/TaskCard';
+import { Button, EmptyState, Pill, Section, Spinner } from '@/components/ui';
+import { TASK_STATUS_META, TaskCard, type TaskDto } from '@/components/TaskCard';
 import { Modal } from '@/components/Modal';
+import { TimePicker } from '@/components/TimePicker';
 import { IconPlus } from '@/components/Icons';
 import type { CampaignDto } from '@/components/CampaignCard';
-import { minutesBetween, minutesToHuman } from '@/lib/format';
+import { fmtDate, minutesBetween, minutesToHuman } from '@/lib/format';
 
 const clientToday = () => new Date().toLocaleDateString('en-CA');
 const NEW_CAMPAIGN = '__new__';
 
+/** The Mon–Sat working week (Sunday is off) containing the given day. */
+function workWeek(iso: string): string[] {
+  const start = new Date(`${iso}T00:00:00`);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to Monday
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d.toLocaleDateString('en-CA');
+  });
+}
+
+const weekdayShort = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short' });
+
+interface HistoryDay {
+  date: string;
+  total: number;
+  done: number;
+  delayed: number;
+  pending: number;
+  tasks: TaskDto[];
+}
+
 export function Tasks() {
   const qc = useQueryClient();
   const meme = useToasts((s) => s.meme);
+  const today = clientToday();
   const [open, setOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [delayFor, setDelayFor] = useState<TaskDto | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  const tasksQ = useQuery({ queryKey: ['tasks', clientToday()], queryFn: () => api.get<{ tasks: TaskDto[] }>(`/tasks?date=${clientToday()}`) });
+  // carryOver=1 keeps unfinished work from earlier days on the list until it is closed out.
+  const tasksKey = ['tasks', today];
+  const tasksQ = useQuery({
+    queryKey: tasksKey,
+    queryFn: () => api.get<{ tasks: TaskDto[] }>(`/tasks?date=${today}&carryOver=1`),
+  });
   const campaignsQ = useQuery({ queryKey: ['campaigns'], queryFn: () => api.get<{ campaigns: CampaignDto[] }>('/campaigns') });
   const campaignName = (id: string | null) =>
     id ? campaignsQ.data?.campaigns.find((c) => c.id === id)?.name.split(' — ')[0] : undefined;
@@ -39,6 +70,11 @@ export function Tasks() {
       invalidate();
     },
   });
+  const reorder = useMutation({
+    mutationFn: (ids: string[]) => api.post('/tasks/reorder', { ids }),
+    // Re-sync either way: on success to confirm the saved order, on failure to drop the local one.
+    onSettled: invalidate,
+  });
 
   // A task that has already run past its estimate should prompt for a reason before completing.
   function handleComplete(t: TaskDto) {
@@ -49,17 +85,43 @@ export function Tasks() {
   }
 
   const tasks = tasksQ.data?.tasks ?? [];
-  const openTasks = tasks.filter((t) => t.status !== 'done');
-  const done = tasks.filter((t) => t.status === 'done');
+  // One list, server order (sortOrder). Completing or starting a task never moves it (v4 feedback).
+  const carried = tasks.filter((t) => t.carriedOver);
+  const todays = tasks.filter((t) => !t.carriedOver);
+
+  /** Paint the new sequence straight away, then persist it. Only today's tasks reorder. */
+  function applyOrder(next: TaskDto[]) {
+    qc.setQueryData<{ tasks: TaskDto[] }>(tasksKey, (prev) => (prev ? { tasks: [...carried, ...next] } : prev));
+    reorder.mutate(next.map((t) => t.id));
+  }
+
+  function move(from: number, to: number) {
+    if (to < 0 || to >= todays.length) return;
+    const next = [...todays];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    applyOrder(next);
+  }
+
+  function dropOn(index: number) {
+    const from = todays.findIndex((t) => t.id === draggingId);
+    setDraggingId(null);
+    if (from >= 0 && from !== index) move(from, index);
+  }
 
   return (
     <div className="flex flex-col gap-5 pt-1">
       <Section
         title="What's your plan for the day?"
         action={
-          <Button variant="ghost" className="!px-3 !py-2" onClick={() => setOpen(true)}>
-            <IconPlus /> Add
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" className="!px-3 !py-2 !text-[13px]" onClick={() => setPlanOpen(true)}>
+              Week plan
+            </Button>
+            <Button variant="ghost" className="!px-3 !py-2" onClick={() => setOpen(true)}>
+              <IconPlus /> Add
+            </Button>
+          </div>
         }
       >
         {tasksQ.isLoading ? (
@@ -73,7 +135,23 @@ export function Tasks() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {openTasks.map((t) => (
+            {carried.length > 0 && (
+              <>
+                <p className="text-[12px] font-medium text-coral">Pending from earlier</p>
+                {carried.map((t) => (
+                  <TaskCard
+                    key={t.id}
+                    t={t}
+                    campaignName={campaignName(t.campaignId)}
+                    busy={start.isPending || complete.isPending}
+                    onStart={() => start.mutate(t.id)}
+                    onComplete={() => handleComplete(t)}
+                  />
+                ))}
+                <p className="mt-1 text-[12px] font-medium text-muted">Today</p>
+              </>
+            )}
+            {todays.map((t, i) => (
               <TaskCard
                 key={t.id}
                 t={t}
@@ -81,21 +159,18 @@ export function Tasks() {
                 busy={start.isPending || complete.isPending}
                 onStart={() => start.mutate(t.id)}
                 onComplete={() => handleComplete(t)}
+                onMoveUp={() => move(i, i - 1)}
+                onMoveDown={() => move(i, i + 1)}
+                canMoveUp={i > 0}
+                canMoveDown={i < todays.length - 1}
+                onDragStart={() => setDraggingId(t.id)}
+                onDragOver={(e: DragEvent<HTMLDivElement>) => e.preventDefault()}
+                onDrop={() => dropOn(i)}
               />
             ))}
           </div>
         )}
       </Section>
-
-      {done.length > 0 && (
-        <Section title="Completed today">
-          <div className="flex flex-col gap-3">
-            {done.map((t) => (
-              <TaskCard key={t.id} t={t} campaignName={campaignName(t.campaignId)} onStart={() => {}} onComplete={() => {}} />
-            ))}
-          </div>
-        </Section>
-      )}
 
       <AddTaskModal
         open={open}
@@ -106,6 +181,8 @@ export function Tasks() {
           setOpen(false);
         }}
       />
+
+      <TaskPlanModal open={planOpen} onClose={() => setPlanOpen(false)} today={today} />
 
       <DelayReasonModal
         task={delayFor}
@@ -158,6 +235,7 @@ function AddTaskModal({
       setEndTime('11:00');
       onCreated();
     },
+    // The server explains an overlapping slot in plain English — show it and keep the form open.
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -199,16 +277,9 @@ function AddTaskModal({
               {canCreateCampaign && <option value={NEW_CAMPAIGN}>＋ Add a campaign…</option>}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="label">Start time</label>
-              <input className="input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">End time</label>
-              <input className="input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-            </div>
-          </div>
+          {/* Stacked, not side by side: three selects each need the room on a phone. */}
+          <TimePicker label="Start time" value={startTime} onChange={setStartTime} disabled={create.isPending} />
+          <TimePicker label="End time" value={endTime} onChange={setEndTime} disabled={create.isPending} />
           <p className="text-[12px] text-muted">
             {estimate ? `Estimated time: ${minutesToHuman(estimate)}` : 'Set an end time after the start time.'}
           </p>
@@ -297,6 +368,168 @@ function QuickCampaignModal({
         </Button>
       </form>
     </Modal>
+  );
+}
+
+/** Read-only plan and log: this week's Mon–Sat plan, and the past 30 days day by day. */
+function TaskPlanModal({ open, onClose, today }: { open: boolean; onClose: () => void; today: string }) {
+  const [view, setView] = useState<'week' | 'history'>('week');
+  const [weekDay, setWeekDay] = useState(today);
+  const [historyDay, setHistoryDay] = useState<string | null>(null);
+  const week = workWeek(today);
+
+  const weekQ = useQuery({
+    queryKey: ['tasks', 'week', week[0]],
+    queryFn: () => api.get<{ tasks: TaskDto[] }>(`/tasks?from=${week[0]}&to=${week[week.length - 1]}`),
+    enabled: open && view === 'week',
+  });
+  const historyQ = useQuery({
+    queryKey: ['tasks', 'history'],
+    queryFn: () => api.get<{ from: string; to: string; days: HistoryDay[] }>('/tasks/history'),
+    enabled: open && view === 'history',
+  });
+
+  const weekTasks = weekQ.data?.tasks ?? [];
+  const historyDays = historyQ.data?.days ?? [];
+  // Newest day first, so the log opens on the most recent day the member logged anything.
+  const selectedHistory = historyDay ?? historyDays[0]?.date ?? null;
+  const loading = view === 'week' ? weekQ.isLoading : historyQ.isLoading;
+  const dayTasks =
+    view === 'week'
+      ? weekTasks.filter((t) => t.workDate === weekDay)
+      : (historyDays.find((d) => d.date === selectedHistory)?.tasks ?? []);
+  const selectedDate = view === 'week' ? weekDay : selectedHistory;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Task plan & history">
+      <div className="flex flex-col gap-3">
+        <div className="flex rounded-full bg-white/5 p-1">
+          <SegmentButton selected={view === 'week'} onClick={() => setView('week')}>
+            This week
+          </SegmentButton>
+          <SegmentButton selected={view === 'history'} onClick={() => setView('history')}>
+            Last 30 days
+          </SegmentButton>
+        </div>
+
+        {loading ? (
+          <Spinner />
+        ) : view === 'history' && historyDays.length === 0 ? (
+          <EmptyState emoji="🗂️" title="No task history yet" hint="Days you plan tasks on will show up here." />
+        ) : (
+          <>
+            {/* Chips scroll sideways on a phone and simply sit in a row on a laptop. */}
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {view === 'week'
+                ? week.map((d) => (
+                    <DayTab
+                      key={d}
+                      date={d}
+                      count={weekTasks.filter((t) => t.workDate === d).length}
+                      selected={d === weekDay}
+                      isToday={d === today}
+                      onSelect={() => setWeekDay(d)}
+                    />
+                  ))
+                : historyDays.map((d) => (
+                    <DayTab
+                      key={d.date}
+                      date={d.date}
+                      count={d.total}
+                      pending={d.pending}
+                      selected={d.date === selectedHistory}
+                      isToday={d.date === today}
+                      onSelect={() => setHistoryDay(d.date)}
+                    />
+                  ))}
+            </div>
+
+            {selectedDate && <p className="text-[12px] text-muted">{fmtDate(selectedDate)}</p>}
+
+            <div className="flex max-h-[46vh] flex-col gap-2 overflow-y-auto">
+              {dayTasks.length === 0 ? (
+                <EmptyState emoji="🗓️" title="Nothing planned that day" hint="Pick another day to see its tasks." />
+              ) : (
+                dayTasks.map((t) => <PlanRow key={t.id} t={t} />)
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function SegmentButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex-1 rounded-full px-3 py-2 text-[13px] font-semibold transition ${
+        selected ? 'bg-primary text-white' : 'text-muted hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DayTab({
+  date,
+  count,
+  pending,
+  selected,
+  isToday,
+  onSelect,
+}: {
+  date: string;
+  count: number;
+  pending?: number;
+  selected: boolean;
+  isToday: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={`flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-3 py-2 transition ${
+        selected ? 'bg-primary/25 text-ink' : 'bg-white/5 text-muted hover:text-ink'
+      } ${isToday && !selected ? 'ring-1 ring-primary/60' : ''}`}
+    >
+      <span className="text-[10px] uppercase tracking-wide">{weekdayShort(date)}</span>
+      <span className="font-display text-[13px] font-bold">{fmtDate(date)}</span>
+      <span className={`text-[10px] ${pending ? 'text-coral' : count ? 'text-mint' : 'text-muted/60'}`}>
+        {count ? `${count} task${count === 1 ? '' : 's'}` : 'Free'}
+      </span>
+    </button>
+  );
+}
+
+/** One compact line per task in the read-only views: title — campaign — how it went. */
+function PlanRow({ t }: { t: TaskDto }) {
+  const meta = t.timeliness ? TASK_STATUS_META[t.timeliness] : null;
+  const label = meta?.label ?? (t.status === 'done' ? 'Done' : 'Pending');
+
+  return (
+    <div className="rounded-xl bg-white/[0.04] px-3 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[14px] text-ink">{t.title}</p>
+          <p className="truncate text-[12px] text-muted">{t.campaignName ?? 'No campaign'}</p>
+        </div>
+        <Pill tone={meta?.tone ?? (t.status === 'done' ? 'mint' : 'sunny')} className="shrink-0">
+          {label}
+        </Pill>
+      </div>
+      {t.timeliness === 'delayed' && t.delayReason && (
+        <p className="mt-1.5 rounded-lg bg-coral/10 px-2.5 py-1.5 text-[12px] text-coral">
+          Reason for delay: <span className="text-ink">{t.delayReason}</span>
+        </p>
+      )}
+    </div>
   );
 }
 

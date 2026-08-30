@@ -19,7 +19,7 @@ export interface Fixture {
 export async function resetDb(): Promise<Fixture> {
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE
     leave_ledger, leave_requests, comp_off_credits, comp_off_requests,
-    attendance_days, calendar_remarks, tasks, campaign_members, campaigns,
+    attendance_days, calendar_remarks, tasks, campaign_members, campaign_notes, campaigns,
     notifications, leaderboard_snapshots, refresh_tokens, employee_profiles,
     role_permissions, roles, permissions, holidays, meme_lines, users
     RESTART IDENTITY CASCADE`);
@@ -67,7 +67,7 @@ export async function resetDb(): Promise<Fixture> {
   });
 
   // Minimal meme bank so the meme endpoint returns something.
-  await prisma.memeLine.create({ data: { eventKey: 'task_completed_on_time', text: 'Ye badhiya tha guru 🙌' } });
+  await prisma.memeLine.create({ data: { eventKey: 'task_completed_on_time', text: 'Nicely done.' } });
 
   return { founder: 'founder@test.dev', manager: 'manager@test.dev', member1: 'm1@test.dev', member2: 'm2@test.dev' };
 }

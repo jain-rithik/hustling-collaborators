@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { addMemberSchema, createCampaignSchema, updateCampaignSchema } from '@hc/shared';
+import { addMemberSchema, campaignNoteSchema, createCampaignSchema, updateCampaignSchema } from '@hc/shared';
 import { asyncHandler } from '../lib/http.js';
 import { requireAdmin, requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -60,6 +60,29 @@ campaignsRouter.get(
   '/:id/tasks',
   asyncHandler(async (req, res) => {
     res.json({ tasks: await taskService.list({ campaignId: req.params.id }, req.user!) });
+  }),
+);
+
+// Campaign Brief & Details — anyone on the campaign can read and add notes/links (v4).
+campaignsRouter.get(
+  '/:id/notes',
+  asyncHandler(async (req, res) => {
+    res.json({ notes: await campaignService.listNotes(req.params.id, req.user!) });
+  }),
+);
+
+campaignsRouter.post(
+  '/:id/notes',
+  validate({ body: campaignNoteSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json({ note: await campaignService.addNote(req.params.id, req.body.text, req.user!) });
+  }),
+);
+
+campaignsRouter.delete(
+  '/:id/notes/:noteId',
+  asyncHandler(async (req, res) => {
+    res.json(await campaignService.removeNote(req.params.id, req.params.noteId, req.user!));
   }),
 );
 

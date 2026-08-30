@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { lwpDeduction, netEstimate, workingDaysInMonth } from '../../src/domain/salary.js';
+import { lwpDeduction, netEstimate, perDayRate, workingDaysInMonth } from '../../src/domain/salary.js';
 import { FY2627_HOLIDAYS } from './fixtures.js';
 
-describe('salary deductions estimate (domain-rules §12.1)', () => {
-  it('LWP deduction = (lwpDays / workingDays) × salary', () => {
-    expect(lwpDeduction(30000, 2, 22)).toBe(2727.27);
-    expect(lwpDeduction(30000, 3, 22)).toBe(4090.91); // with a late→LWP conversion
-    expect(lwpDeduction(30000, 0, 22)).toBe(0);
+describe('salary on a 30-day basis (v4 change log)', () => {
+  it('per-day rate = salary ÷ 30, the same in every month of the year', () => {
+    expect(perDayRate(30000)).toBe(1000);
+    expect(perDayRate(45500)).toBe(1516.67);
+  });
+
+  it('deducts the days not worked at that per-day rate', () => {
+    expect(lwpDeduction(30000, 2)).toBe(2000);
+    expect(lwpDeduction(30000, 0.5)).toBe(500); // a half day costs half a day
+    expect(lwpDeduction(30000, 0)).toBe(0);
   });
 
   it('guards against a zero denominator', () => {
     expect(lwpDeduction(30000, 2, 0)).toBe(0);
+    expect(perDayRate(30000, 0)).toBe(0);
   });
 
   it('net estimate is labelled and never a payslip', () => {
-    expect(netEstimate(30000, 2727.27)).toEqual({
+    expect(netEstimate(30000, 2000)).toEqual({
       gross: 30000,
-      deductions: 2727.27,
-      net: 27272.73,
+      deductions: 2000,
+      net: 28000,
       isEstimate: true,
     });
   });

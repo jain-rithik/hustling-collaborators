@@ -24,6 +24,9 @@ export const LUNCH_MANAGER_ALERT_MINUTES = 45;
 export const LUNCH_EMPLOYEE_ALERT_MINUTES = 55;
 /** Manager+admin are silently notified when a tea break exceeds this many minutes. */
 export const TEA_MANAGER_ALERT_MINUTES = 15;
+/** The break allowance shown to the employee when they start one (v4 change log). */
+export const LUNCH_ALLOWANCE_MINUTES = LUNCH_MANAGER_ALERT_MINUTES;
+export const TEA_ALLOWANCE_MINUTES = TEA_MANAGER_ALERT_MINUTES;
 
 // ── Leave request rules (v2 change log §05) ──────────────────────────────────
 /** Paid leave must be applied at least this many calendar days in advance, else it becomes LWP. */
@@ -36,6 +39,21 @@ export const LONG_LEAVE_ADVANCE_DAYS = 15;
 export const WFH_ADVANCE_HOURS = 24;
 /** A sick-leave request is only same-day-valid if submitted on or before this IST time, else LWP. */
 export const SICK_LEAVE_CUTOFF = '09:30';
+/**
+ * Sick leave is a same-day event: it cannot be booked for a future date, and it cannot be
+ * filed more than this many hours before office start (10:30 − 5h = from 5:30 AM IST).
+ */
+export const SICK_LEAVE_EARLIEST_HOURS_BEFORE_OFFICE = 5;
+/** An optional holiday must be claimed at least this many calendar days ahead, else LWP. */
+export const OPTIONAL_HOLIDAY_ADVANCE_DAYS = 5;
+/**
+ * A half day must be raised at least this many hours before the member leaves. Their intended
+ * leaving time is the anchor, so a half day on the 30th with a 2 PM exit must be raised by
+ * 2 PM on the 29th; later than that and it is a Half day — Leave Without Pay.
+ */
+export const HALF_DAY_ADVANCE_HOURS = 24;
+/** Assumed leaving time when a half-day request does not name one. */
+export const HALF_DAY_DEFAULT_LEAVE_TIME = '14:00';
 /** Bereavement leave is capped at this many working days. */
 export const BEREAVEMENT_MAX_DAYS = 3;
 
@@ -47,28 +65,52 @@ export const HALF_DAY_MINUTES = 240; // 4h
 /** 6-hour guideline — an ADMIN REFERENCE only; the app never auto-credits comp-off. */
 export const COMP_OFF_GUIDELINE_MINUTES = 360; // 6h
 
-// ── Full-time leave accrual (PRD §9.5) ───────────────────────────────────────
-export const FT_ANNUAL_PL = 18; // Paid Leaves per FY (casual + sick combined)
-export const FT_MONTHLY_ACCRUAL = 1.5; // credited at the start of each calendar month
-export const FT_PROBATION_MONTHS = 3; // probation; leave during probation is LWP only
-export const FT_OPENING_CREDIT = 6; // credited at the start of month 4 (3 mo probation + 1 current)
-export const FT_OPENING_MONTH_INDEX = 4; // 1-indexed tenure month the opening credit posts
-export const FT_ADVANCE_CAP_DAYS = 5; // up to 5 days in advance of accrual; excess → F&F debt
+// ── Leave entitlements (v4 change log) ───────────────────────────────────────
+/**
+ * Full-time entitlement per financial year: 11 Privilege + 7 Sick, both PAID and both earned
+ * on a prorata basis (you hold 6/12 of the year's entitlement after six months, not all of it
+ * on day one). Bereavement and Optional Holiday are paid too but are not accrued balances.
+ */
+export const FT_ANNUAL_PL = 11; // Privilege Leaves per FY
+export const FT_ANNUAL_SICK = 7; // Sick Leaves per FY
+/** Prorata credits are rounded DOWN to this granularity so balances stay in clean half-days. */
+export const ACCRUAL_GRANULARITY = 0.5;
+export const MONTHS_PER_YEAR = 12;
+/** Probation: 3 months full-time, 2 months intern. Leave is still EARNED during probation… */
+export const FT_PROBATION_MONTHS = 3;
+export const INTERN_PROBATION_MONTHS = 2;
+/** …but may not be USED — every leave taken before probation ends is Leave Without Pay. */
+export const FT_ADVANCE_CAP_DAYS = 5; // full-time may use up to 5 days before they are earned
 
-// ── Intern leave accrual (PRD §9.6) ──────────────────────────────────────────
-export const INTERN_PL_CAP = 4; // up to 4 Paid Leaves across the 6-month internship
-export const INTERN_PROBATION_MONTHS = 2; // first 2 months — no leave may be used
-export const INTERN_OPENING_CREDIT = 3; // credited at the start of month 3
-export const INTERN_OPENING_MONTH_INDEX = 3; // 1-indexed tenure month the opening credit posts
-export const INTERN_MONTHLY_ACCRUAL = 1; // +1/month after opening, capped at 4
+/**
+ * Intern entitlement: 4 leaves in total, earned +1 at the start of every month from the month
+ * they join — so 3 by the start of month 3 and the 4th at the start of month 4. Privilege and
+ * Sick share this ONE pool of 4 (unlike full-time, where the two pools are separate).
+ */
+export const INTERN_LEAVE_CAP = 4;
+export const INTERN_MONTHLY_ACCRUAL = 1;
+/** Interns serve a 15-day notice period. Full-time notice length is set by Admin per person. */
+export const INTERN_NOTICE_PERIOD_DAYS = 15;
 
 // ── Optional holidays (PRD §9.1 / §10) ───────────────────────────────────────
 /** Up to 2 optional holidays per FY, claimed via the leave flow. Birthday is ADDITIONAL. */
 export const OPTIONAL_HOLIDAY_CAP_PER_FY = 2;
 
-// ── Mid-month separation clawback (PRD §9.7) ─────────────────────────────────
-/** Last working day on or before the 15th → that month's 1.5-day credit is clawed back. */
+// ── Notice period & mid-month separation (PRD §9.7 / v4 change log) ──────────
+/**
+ * A month's leave credit presumes more than half a month in the company. Notice starting on or
+ * before the 15th → that month's Privilege + Sick credit is reversed and any leave taken
+ * against it is unpaid; notice starting after the 15th → the credit stands and stays paid.
+ */
 export const SEPARATION_CLAWBACK_DAY = 15;
+
+// ── Salary (v4 change log) ───────────────────────────────────────────────────
+/** Salary is computed on a fixed 30-day month: per-day rate = monthly salary ÷ 30. */
+export const SALARY_DAYS_BASIS = 30;
+
+// ── Task history (v4 change log) ─────────────────────────────────────────────
+/** How far back a member (and Admin, on their profile) can browse their own daily task log. */
+export const TASK_HISTORY_DAYS = 30;
 
 // ── Leaderboard (PRD §14.1) ──────────────────────────────────────────────────
 /** Three equal-weighted factors: on-time attendance, task-estimate accuracy, campaign delivery. */

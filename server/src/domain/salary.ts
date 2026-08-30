@@ -1,14 +1,29 @@
+import { SALARY_DAYS_BASIS } from '@hc/shared';
 import { type IsoDate, istDate, toIsoDate } from './time/ist.js';
 import { type HolidayRef, isWorkingDay, resolveDayType } from './dayType.js';
 import { round2 } from './util.js';
 
 /**
- * Salary / deductions estimate (PRD §13). A transparency layer only — NOT a payslip; no
- * PF/ESI/TDS. LWP deduction = (LWP days ÷ working days in month) × monthly salary.
+ * Salary / deductions estimate (PRD §13, revised by the v4 change log). A transparency layer
+ * only — NOT a payslip; no PF/ESI/TDS.
+ *
+ * Salary is computed on a fixed 30-day month: per-day rate = monthly salary ÷ 30, and the
+ * member is paid for the days they worked, with the days not worked deducted at that rate.
+ * A fixed basis keeps the per-day rate identical in every month of the year.
  */
-export function lwpDeduction(salary: number, lwpDays: number, workingDaysInMonth: number): number {
-  if (workingDaysInMonth <= 0) return 0;
-  return round2((lwpDays / workingDaysInMonth) * salary);
+export function perDayRate(salary: number, daysBasis: number = SALARY_DAYS_BASIS): number {
+  if (daysBasis <= 0) return 0;
+  return round2(salary / daysBasis);
+}
+
+/** Deduction for days not worked, at the 30-day per-day rate. */
+export function lwpDeduction(
+  salary: number,
+  lwpDays: number,
+  daysBasis: number = SALARY_DAYS_BASIS,
+): number {
+  if (daysBasis <= 0) return 0;
+  return round2((lwpDays / daysBasis) * salary);
 }
 
 export interface NetEstimate {

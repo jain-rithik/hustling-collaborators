@@ -1,10 +1,15 @@
-/** Overlapping arcs: PL balance (teal, outer) + comp-off (purple, inner) — PRD §6.4. */
-export function LeaveArc({ pl, compOff }: { pl: number; compOff: number }) {
+/**
+ * Overlapping arcs: Privilege Leave (teal, outer) + comp-off (purple, inner) — PRD §6.4.
+ *
+ * The outer arc is drawn against the member's own entitlement (`total`) rather than a fixed
+ * ceiling, so a full-timer on 11 and an intern on 4 both read "how much of mine is left".
+ */
+export function LeaveArc({ remaining, total, compOff }: { remaining: number; total: number; compOff: number }) {
   const rPl = 62;
   const rCo = 46;
   const cPl = 2 * Math.PI * rPl;
   const cCo = 2 * Math.PI * rCo;
-  const plPct = Math.min(Math.max(pl, 0) / 18, 1);
+  const plPct = total > 0 ? Math.min(Math.max(remaining, 0) / total, 1) : 0;
   const coPct = Math.min(Math.max(compOff, 0) / 8, 1);
 
   return (
@@ -38,8 +43,8 @@ export function LeaveArc({ pl, compOff }: { pl: number; compOff: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-display text-[26px] font-extrabold text-mint">{pl}</span>
-        <span className="text-[11px] text-muted">PL days</span>
+        <span className="font-display text-[26px] font-extrabold text-mint">{remaining}</span>
+        <span className="text-[11px] text-muted">of {total} privilege</span>
         <span className="mt-1 text-[11px] text-[#c9beff]">{compOff} comp-off</span>
       </div>
     </div>

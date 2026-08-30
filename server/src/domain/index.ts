@@ -17,6 +17,7 @@ export * from './leaveAccrual.js';
 export * from './leaveDeduction.js';
 export * from './compOff.js';
 export * from './separation.js';
+export * from './noticePeriod.js';
 export * from './leaderboard.js';
 export * from './salary.js';
 export * from './campaign.js';
