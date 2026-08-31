@@ -1,3 +1,14 @@
+import { IST_TZ } from '@hc/shared';
+
+/**
+ * Today's date as the office sees it. The server does all of its day maths in IST, so the
+ * client has to ask the same question the same way — otherwise a laptop set to another
+ * timezone asks for the wrong day's tasks either side of midnight IST.
+ */
+export function istToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: IST_TZ });
+}
+
 export type DeadlineState = 'on_track' | 'coming_up' | 'due_today' | 'overdue' | 'delivered';
 
 export const campaignAccent: Record<DeadlineState, 'mint' | 'sunny' | 'coral' | 'lavender'> = {

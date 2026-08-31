@@ -51,6 +51,7 @@ enum AttendanceStatus {
 
 enum LeaveType {
   pl
+  sick
   lwp
   comp_off
   half_day
@@ -64,6 +65,13 @@ enum LeaveType {
 enum BreakType {
   lunch
   tea
+}
+
+enum Gender {
+  female
+  male
+  non_binary
+  undisclosed
 }
 
 enum RequestStatus {
@@ -135,6 +143,7 @@ model User {
   calendarRemarks      CalendarRemark[]
   notifications        Notification[]
   campaignMemberships  CampaignMember[]
+  campaignNotes        CampaignNote[]
   refreshTokens        RefreshToken[]
   leaderboardSnapshots LeaderboardSnapshot[]
 
@@ -152,9 +161,14 @@ model EmployeeProfile {
   dateOfBirth        DateTime?      @map("date_of_birth") @db.Date
   designation        String?
   department         String?
+  gender             Gender?
   salaryAmount       Decimal?       @map("salary_amount") @db.Decimal(12, 2)
   reportingManagerId String?        @map("reporting_manager_id") @db.Uuid
   probationEndDate   DateTime?      @map("probation_end_date") @db.Date
+  // Notice period (v4). noticeStartDate on/before the 15th makes that month's leave credit
+  // unpaid; noticeLastDate is the last working day. Both null = not serving notice.
+  noticeStartDate    DateTime?      @map("notice_start_date") @db.Date
+  noticeLastDate     DateTime?      @map("notice_last_date") @db.Date
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -172,7 +186,7 @@ model EmployeeProfile {
 model Role {
   key         String           @id
   label       String
-  description  String
+  description String
   permissions RolePermission[]
 
   @@map("roles")
@@ -215,6 +229,7 @@ model Campaign {
 
   members CampaignMember[]
   tasks   Task[]
+  notes   CampaignNote[]
 
   @@index([status])
   @@index([leadId])
@@ -236,6 +251,22 @@ model CampaignMember {
   @@map("campaign_members")
 }
 
+// Campaign Brief & Details (v4): the brief, a Google Sheet link, or any note a member adds.
+model CampaignNote {
+  id         String   @id @default(uuid()) @db.Uuid
+  campaignId String   @map("campaign_id") @db.Uuid
+  authorId   String?  @map("author_id") @db.Uuid
+  text       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  author   User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+  @@map("campaign_notes")
+}
+
 // ─────────────────────────────── Tasks ──────────────────────────────────────
 
 model Task {
@@ -246,6 +277,8 @@ model Task {
   estimatedMinutes Int        @map("estimated_minutes")
   status           TaskStatus @default(todo)
   workDate         DateTime   @map("work_date") @db.Date
+  // Manual top-to-bottom position within the day. Starting a task never changes it (v4).
+  sortOrder        Int        @default(0) @map("sort_order")
   plannedStartTime String?    @map("planned_start_time") // HH:mm scheduling aid
   plannedEndTime   String?    @map("planned_end_time") // HH:mm scheduling aid
   startedAt        DateTime?  @map("started_at") @db.Timestamptz(6)
@@ -261,6 +294,7 @@ model Task {
   campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([ownerId, workDate])
+  @@index([ownerId, status])
   @@index([campaignId])
   @@map("tasks")
 }
@@ -345,24 +379,24 @@ model CalendarRemark {
 // ─────────────────────────── Leave & ledger ─────────────────────────────────
 
 model LeaveRequest {
-  id            String        @id @default(uuid()) @db.Uuid
-  userId        String        @map("user_id") @db.Uuid
-  leaveType     LeaveType     @map("leave_type")
-  startDate     DateTime      @map("start_date") @db.Date
-  endDate       DateTime      @map("end_date") @db.Date
-  isHalfDay     Boolean       @default(false) @map("is_half_day")
-  halfDayArrival String?      @map("half_day_arrival") // HH:mm — hours worked around a half-day
-  halfDayLeave   String?      @map("half_day_leave") // HH:mm
-  isSick        Boolean       @default(false) @map("is_sick") // PL flagged as sick leave
-  bereavementRelationship String? @map("bereavement_relationship") // RM/Admin-visible only
-  requestedDays Decimal       @map("requested_days") @db.Decimal(5, 2)
-  reason        String
-  status        RequestStatus @default(pending)
-  approverId    String?       @map("approver_id") @db.Uuid
-  decisionNote  String?       @map("decision_note")
-  decidedAt     DateTime?     @map("decided_at") @db.Timestamptz(6)
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                      String        @id @default(uuid()) @db.Uuid
+  userId                  String        @map("user_id") @db.Uuid
+  leaveType               LeaveType     @map("leave_type")
+  startDate               DateTime      @map("start_date") @db.Date
+  endDate                 DateTime      @map("end_date") @db.Date
+  isHalfDay               Boolean       @default(false) @map("is_half_day")
+  halfDayArrival          String?       @map("half_day_arrival") // HH:mm — hours worked around a half-day
+  halfDayLeave            String?       @map("half_day_leave") // HH:mm
+  isSick                  Boolean       @default(false) @map("is_sick") // PL flagged as sick leave
+  bereavementRelationship String?       @map("bereavement_relationship") // RM/Admin-visible only
+  requestedDays           Decimal       @map("requested_days") @db.Decimal(5, 2)
+  reason                  String
+  status                  RequestStatus @default(pending)
+  approverId              String?       @map("approver_id") @db.Uuid
+  decisionNote            String?       @map("decision_note")
+  decidedAt               DateTime?     @map("decided_at") @db.Timestamptz(6)
+  createdAt               DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   ledgerEntries LeaveLedger[] @relation("LedgerFromLeaveRequest")
@@ -373,21 +407,21 @@ model LeaveRequest {
 }
 
 model LeaveLedger {
-  id                   String          @id @default(uuid()) @db.Uuid
-  userId               String          @map("user_id") @db.Uuid
-  effectiveDate        DateTime        @map("effective_date") @db.Date
-  entryType            LedgerEntryType @map("entry_type")
-  leaveType            LeaveType?      @map("leave_type")
-  amount               Decimal         @db.Decimal(5, 2)
-  balanceAfter         Decimal         @map("balance_after") @db.Decimal(6, 2)
-  sourceLeaveRequestId String?         @map("source_leave_request_id") @db.Uuid
-  sourceCompOffCreditId String?        @map("source_comp_off_credit_id") @db.Uuid
-  note                 String?
-  createdBy            String?         @map("created_by") @db.Uuid
-  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                    String          @id @default(uuid()) @db.Uuid
+  userId                String          @map("user_id") @db.Uuid
+  effectiveDate         DateTime        @map("effective_date") @db.Date
+  entryType             LedgerEntryType @map("entry_type")
+  leaveType             LeaveType?      @map("leave_type")
+  amount                Decimal         @db.Decimal(5, 2)
+  balanceAfter          Decimal         @map("balance_after") @db.Decimal(6, 2)
+  sourceLeaveRequestId  String?         @map("source_leave_request_id") @db.Uuid
+  sourceCompOffCreditId String?         @map("source_comp_off_credit_id") @db.Uuid
+  note                  String?
+  createdBy             String?         @map("created_by") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sourceLeaveRequest LeaveRequest?  @relation("LedgerFromLeaveRequest", fields: [sourceLeaveRequestId], references: [id], onDelete: SetNull)
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceLeaveRequest  LeaveRequest?  @relation("LedgerFromLeaveRequest", fields: [sourceLeaveRequestId], references: [id], onDelete: SetNull)
   sourceCompOffCredit CompOffCredit? @relation("LedgerFromCompOff", fields: [sourceCompOffCreditId], references: [id], onDelete: SetNull)
 
   @@index([userId, effectiveDate])
@@ -430,9 +464,9 @@ model CompOffCredit {
   note                     String?
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   request       CompOffRequest? @relation("CreditFromRequest", fields: [compOffRequestId], references: [id], onDelete: SetNull)
-  ledgerEntries LeaveLedger[]  @relation("LedgerFromCompOff")
+  ledgerEntries LeaveLedger[]   @relation("LedgerFromCompOff")
 
   @@index([userId, consumed, expiresOn])
   @@map("comp_off_credits")
@@ -471,14 +505,14 @@ model MemeLine {
 // ─────────────────────────── Auth & leaderboard ─────────────────────────────
 
 model RefreshToken {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  tokenHash   String    @unique @map("token_hash")
-  familyId    String    @map("family_id") @db.Uuid
-  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
-  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
-  replacedBy  String?   @map("replaced_by")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  familyId   String    @map("family_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedBy String?   @map("replaced_by")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -488,16 +522,16 @@ model RefreshToken {
 }
 
 model LeaderboardSnapshot {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
-  yearMonth         String   @map("year_month") // 'YYYY-MM' IST
-  score             Int
-  rank              Int
-  factorAttendance  Decimal? @map("factor_attendance") @db.Decimal(5, 4)
-  factorTask        Decimal? @map("factor_task") @db.Decimal(5, 4)
-  factorCampaign    Decimal? @map("factor_campaign") @db.Decimal(5, 4)
-  onTimeStreak      Int      @default(0) @map("on_time_streak")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  yearMonth        String   @map("year_month") // 'YYYY-MM' IST
+  score            Int
+  rank             Int
+  factorAttendance Decimal? @map("factor_attendance") @db.Decimal(5, 4)
+  factorTask       Decimal? @map("factor_task") @db.Decimal(5, 4)
+  factorCampaign   Decimal? @map("factor_campaign") @db.Decimal(5, 4)
+  onTimeStreak     Int      @default(0) @map("on_time_streak")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

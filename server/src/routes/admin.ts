@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { adminToggleSchema, setActiveSchema, setRoleSchema } from '@hc/shared';
+import { adminNotifySchema, adminToggleSchema, setActiveSchema, setRoleSchema } from '@hc/shared';
 import { asyncHandler } from '../lib/http.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -45,6 +45,15 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     const date = (req.query.date as string | undefined) ?? istToday();
     res.json(await adminService.dailyOverview(date));
+  }),
+);
+
+// Admin drops an alert/note to any team member (v4 change log).
+adminRouter.post(
+  '/notify',
+  validate({ body: adminNotifySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await adminService.notifyMembers(req.body.userIds, req.body.title, req.body.body, req.user!));
   }),
 );
 

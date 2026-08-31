@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { createProfileSchema, deleteProfileSchema, updateProfileSchema } from '@hc/shared';
+import {
+  createProfileSchema,
+  deleteProfileSchema,
+  setNoticePeriodSchema,
+  updateOwnProfileSchema,
+  updateProfileSchema,
+} from '@hc/shared';
 import { asyncHandler } from '../lib/http.js';
 import { requireAdmin, requireAuth, requireSelfOrManagerOrAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -19,6 +25,15 @@ profilesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     res.json({ profiles: await profileService.list(req.user!) });
+  }),
+);
+
+// A member maintaining their own details (v4 change log).
+profilesRouter.patch(
+  '/me',
+  validate({ body: updateOwnProfileSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({ profile: await profileService.updateOwn(req.user!.id, req.body) });
   }),
 );
 
@@ -45,6 +60,16 @@ profilesRouter.patch(
   validate({ body: updateProfileSchema }),
   asyncHandler(async (req, res) => {
     res.json({ profile: await profileService.update(req.params.userId, req.body) });
+  }),
+);
+
+// Admin puts a member on notice, or lifts it (v4 change log).
+profilesRouter.patch(
+  '/:userId/notice-period',
+  requireAdmin,
+  validate({ body: setNoticePeriodSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({ profile: await profileService.setNoticePeriod(req.params.userId, req.body) });
   }),
 );
 

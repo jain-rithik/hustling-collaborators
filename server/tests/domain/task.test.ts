@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { DateTime } from 'luxon';
 import { IST_TZ } from '@hc/shared';
-import { computeActualMinutes, isWithinEstimate, taskTimeliness } from '../../src/domain/task.js';
+import {
+  clockToMinutes,
+  computeActualMinutes,
+  findScheduleClash,
+  isCarriedOver,
+  isWithinEstimate,
+  taskTimeliness,
+  toPlannedWindow,
+  windowsOverlap,
+} from '../../src/domain/task.js';
 
 const t = (hms: string) => DateTime.fromISO(`2026-11-10T${hms}`, { zone: IST_TZ });
 
@@ -64,5 +73,46 @@ describe('task timing (domain-rules §6)', () => {
         expect(taskTimeliness(actual, est) === 'delayed').toBe(!isWithinEstimate(actual, est));
       }
     });
+  });
+});
+
+describe('task scheduling — one person, one slot (v4 change log)', () => {
+  const win = (s: string, e: string) => toPlannedWindow(s, e)!;
+
+  it('parses clock strings into minute windows and rejects bad ones', () => {
+    expect(clockToMinutes('10:30')).toBe(630);
+    expect(clockToMinutes('00:00')).toBe(0);
+    expect(clockToMinutes('24:00')).toBeNull();
+    expect(clockToMinutes('10:75')).toBeNull();
+    expect(clockToMinutes('half ten')).toBeNull();
+    expect(clockToMinutes(null)).toBeNull();
+    expect(toPlannedWindow('11:00', '10:00')).toBeNull(); // end before start
+    expect(toPlannedWindow('11:00', '11:00')).toBeNull(); // zero length
+    expect(toPlannedWindow(null, '11:00')).toBeNull();
+    expect(toPlannedWindow('11:00', null)).toBeNull();
+  });
+
+  it('treats windows as half-open, so a task may start when the previous one ends', () => {
+    expect(windowsOverlap(win('10:00', '11:00'), win('11:00', '12:00'))).toBe(false);
+    expect(windowsOverlap(win('10:00', '11:00'), win('10:59', '12:00'))).toBe(true);
+    expect(windowsOverlap(win('10:00', '11:00'), win('09:00', '10:30'))).toBe(true);
+    expect(windowsOverlap(win('10:00', '11:00'), win('10:15', '10:45'))).toBe(true); // fully inside
+  });
+
+  it('names the task a new one would clash with, and ignores unscheduled tasks', () => {
+    const existing = [
+      { id: 'a', title: 'Creator outreach', plannedStartTime: '10:00', plannedEndTime: '11:00' },
+      { id: 'b', title: 'No window', plannedStartTime: null, plannedEndTime: null },
+    ];
+    expect(findScheduleClash(win('10:30', '11:30'), existing)?.id).toBe('a');
+    expect(findScheduleClash(win('11:00', '12:00'), existing)).toBeNull();
+    expect(findScheduleClash(win('09:00', '10:00'), existing)).toBeNull();
+  });
+
+  it('flags an unfinished task from an earlier day as carried over', () => {
+    expect(isCarriedOver('2026-08-29', 'todo', '2026-08-30')).toBe(true);
+    expect(isCarriedOver('2026-08-29', 'active', '2026-08-30')).toBe(true);
+    expect(isCarriedOver('2026-08-29', 'done', '2026-08-30')).toBe(false);
+    expect(isCarriedOver('2026-08-30', 'todo', '2026-08-30')).toBe(false);
   });
 });

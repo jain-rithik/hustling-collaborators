@@ -1,8 +1,9 @@
 import { DateTime } from 'luxon';
 import { IST_TZ, type UserRole } from '@hc/shared';
 import { prisma } from '../lib/prisma.js';
-import { conflict, notFound } from '../lib/errors.js';
+import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { isoToDbDate } from '../lib/dates.js';
+import { notifyMany } from '../lib/notify.js';
 import { taskTimeliness } from '../domain/index.js';
 
 export const adminService = {
@@ -107,6 +108,26 @@ export const adminService = {
         };
       }),
     };
+  },
+
+  /**
+   * Admin drops a note or alert to one or more team members (v4 change log). It lands in their
+   * in-app notifications like any other alert — there are no external channels.
+   */
+  async notifyMembers(userIds: string[], title: string, body: string, admin: { id: string }) {
+    const recipients = await prisma.user.findMany({
+      where: { id: { in: userIds }, isActive: true },
+      select: { id: true },
+    });
+    if (!recipients.length) throw badRequest('Pick at least one active team member to notify.');
+    await notifyMany(
+      recipients.map((r) => r.id),
+      'admin_note',
+      title,
+      body,
+      { fromAdminId: admin.id },
+    );
+    return { notified: recipients.length };
   },
 
   /** All pending leave + comp-off requests across the org, for the Admin approvals view (v2 §05). */

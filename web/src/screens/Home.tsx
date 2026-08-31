@@ -8,10 +8,9 @@ import { Card, Pill, Section, Spinner, StatCard } from '@/components/ui';
 import { CampaignCard, type CampaignDto } from '@/components/CampaignCard';
 import { BreakControls } from '@/components/BreakControls';
 import { IconPin } from '@/components/Icons';
-import { fmtTime12, greeting } from '@/lib/format';
+import { fmtDate, fmtTime12, greeting, istToday } from '@/lib/format';
 
 const STATE_PRIORITY: Record<string, number> = { overdue: 0, due_today: 1, coming_up: 2, on_track: 3, delivered: 4 };
-const clientToday = () => new Date().toLocaleDateString('en-CA');
 
 export function Home() {
   const user = useAuth((s) => s.user)!;
@@ -20,7 +19,7 @@ export function Home() {
   const navigate = useNavigate();
 
   const today = useQuery({ queryKey: ['attendance', 'today'], queryFn: () => api.get<TodayAttendance>('/attendance/today') });
-  const tasks = useQuery({ queryKey: ['tasks', clientToday()], queryFn: () => api.get<{ tasks: unknown[] }>(`/tasks?date=${clientToday()}`) });
+  const tasks = useQuery({ queryKey: ['tasks', istToday()], queryFn: () => api.get<{ tasks: unknown[] }>(`/tasks?date=${istToday()}`) });
   const board = useQuery({ queryKey: ['leaderboard'], queryFn: () => api.get<{ board: BoardRow[] }>('/leaderboard') });
   const focus = useQuery({ queryKey: ['focus'], queryFn: () => api.get<{ todayMinutes: number; phrase: string }>('/focus/me') });
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: () => api.get<{ campaigns: CampaignDto[] }>('/campaigns') });
@@ -71,24 +70,26 @@ export function Home() {
             {firstName}
           </h1>
         </div>
-        <span className="mt-1 text-[13px] text-muted">
-          {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-        </span>
+        <span className="mt-1 text-[13px] text-muted">{fmtDate(istToday())}</span>
       </header>
 
       {today.data && (
-        <AttendanceCTA
-          today={today.data}
-          onCheckIn={() => checkIn.mutate()}
-          onCheckOut={() => checkOut.mutate()}
-          onWfh={() => wfh.mutate()}
-          busy={checkIn.isPending || checkOut.isPending || wfh.isPending}
-        />
+        <div className="lg:max-w-md">
+          <AttendanceCTA
+            today={today.data}
+            onCheckIn={() => checkIn.mutate()}
+            onCheckOut={() => checkOut.mutate()}
+            onWfh={() => wfh.mutate()}
+            busy={checkIn.isPending || checkOut.isPending || wfh.isPending}
+          />
+        </div>
       )}
 
-      {today.data?.checkedIn && today.data.status !== 'wfh' && <BreakControls />}
+      <div className="lg:max-w-md">
+        {today.data?.checkedIn && today.data.status !== 'wfh' && <BreakControls />}
+      </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:max-w-2xl">
         <button className="text-left" onClick={() => navigate('/tasks')}>
           <StatCard label="Today's tasks" value={taskCount} sub={taskCount === 0 ? 'Add your first' : 'View your plan'} />
         </button>

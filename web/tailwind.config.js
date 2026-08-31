@@ -43,11 +43,17 @@ export default {
           '0%,100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
         },
+        // Carried-over pending work blinks red until it is closed out (v4 change log).
+        blinkRed: {
+          '0%,100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
       },
       animation: {
         'toast-up': 'toast-up 0.35s cubic-bezier(0.16,1,0.3,1)',
         pop: 'pop 0.3s ease-out',
         'pulse-soft': 'pulseSoft 1.8s ease-in-out infinite',
+        'blink-red': 'blinkRed 1.1s ease-in-out infinite',
       },
     },
   },

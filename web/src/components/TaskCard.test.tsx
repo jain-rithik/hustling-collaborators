@@ -6,15 +6,20 @@ import { TaskCard, type TaskDto } from './TaskCard';
 const todo: TaskDto = {
   id: 't1',
   title: '100 profiles shortlisting',
+  ownerId: 'u1',
   campaignId: null,
+  campaignName: null,
   estimatedMinutes: 30,
   status: 'todo',
+  workDate: '2026-11-10',
+  sortOrder: 10,
   plannedStartTime: null,
   plannedEndTime: null,
   startedAt: null,
   actualMinutes: null,
   withinEstimate: null,
   delayReason: null,
+  carriedOver: false,
   timeliness: null,
 };
 
