@@ -269,6 +269,9 @@ Where per task `actualMinutes = round((completedAt − startedAt) in minutes)` a
 
 ## 7. Rule R5 — Full-time leave accrual
 
+> **Superseded by the v4 change log (see §20).** The entitlement figures, the accrual
+> shape and the probation rule below describe the original policy. §20 is normative.
+
 `leaveAccrual.ts`. Leave amounts posted as append-only `leave_ledger` entries; balance = running `Σ amount`.
 
 ### 7.1 Probation & opening
@@ -322,6 +325,9 @@ If probation straddles 01-Apr (e.g., a Jan-2027 full-time joiner: M1–M3 = Jan�
 ---
 
 ## 8. Rule R6 — Intern leave accrual
+
+> **Superseded by the v4 change log (see §20).** The entitlement figures, the accrual
+> shape and the probation rule below describe the original policy. §20 is normative.
 
 ```ts
 probationEndDate(joining, "intern"): LocalDate   // = firstOfMonth(joining) + 2 months
@@ -448,6 +454,9 @@ Rule (PRD §9.7): the month's `+1.5` presumes active employment **through the 15
 ---
 
 ## 12. Rule R10 — Salary & deductions estimate
+
+> **Superseded by the v4 change log (see §20).** The entitlement figures, the accrual
+> shape and the probation rule below describe the original policy. §20 is normative.
 
 > **Transparency layer only** — never a payslip. **No PF / ESI / TDS / statutory math.** Visible only to the employee, their Reporting Manager, and Admins (field-scoped like GPS).
 
@@ -646,3 +655,92 @@ Consolidated; cross-referenced to `01-architecture.md §13` where overlapping.
 ### Change-control note
 This file is normative. If implementation reveals a rule that cannot hold, **change this document first** (with the founder's sign-off on any policy-affecting item, marked A#), then the code and tests. Tests import the worked examples in §3–§14 verbatim as fixtures.
 ```
+
+---
+
+## 20. v4 change log — leave, tasks and salary (normative)
+
+This section supersedes §7, §8 and §12 where they disagree, and adds the notice-period
+and task-scheduling rules. Everything here is implemented in `server/src/domain/` and
+covered by `server/tests/domain/` plus `server/tests/api/v4Leave.test.ts`.
+
+### 20.1 Entitlements
+
+| | Privilege (`pl`) | Sick (`sick`) | Pool |
+|---|---|---|---|
+| Full-time | 11 / FY | 7 / FY | two separate pools, both lapse 31 Mar |
+| Intern | 4 lifetime | — | **one shared pool** of 4 across both types |
+
+Bereavement (≤3 days) and Optional Holiday (2/FY) are paid but are not accrued balances.
+
+### 20.2 Accrual
+
+- **Full-time — prorata.** After `m` months of the financial year the member has earned
+  `floorToHalf(annual × m ÷ 12)`, capped at the annual figure: 0.5 after one month,
+  5.5 Privilege / 3.5 Sick at six, exactly 11 / 7 at twelve. Rounding **down** to the
+  half day means leave is never credited before it is earned. Unused balance lapses on
+  1 April; a mid-FY joiner earns only their share of that year.
+- **Intern — +1 a month** from the joining month, capped at 4. Three by the start of
+  month 3, the fourth at the start of month 4. No FY reset.
+- Leave is **earned** from month 1 in both cases. Probation restricts *using* it.
+
+### 20.3 Probation
+
+Full-time 3 months, intern 2, counted in whole months from the joining month. A paid
+leave (Privilege, Sick, Bereavement, Optional Holiday) that **starts on or before** the
+probation end date is granted as Leave Without Pay.
+
+### 20.4 Notice period
+
+- While serving notice, **every** leave raised is Leave Without Pay.
+- Notice starting **on or before the 15th** → that month's Privilege + Sick credit is
+  reversed (`clawback`), because the member will not complete more than 15 days that
+  month. After the 15th the credit stands. The reversal is idempotent.
+- Interns serve 15 days; full-time notice length is Admin-set per person.
+
+### 20.5 Request timing — what makes a leave unpaid
+
+Evaluated in this order; the first match converts the request to `lwp` and returns the
+matching notice to the client, which shows it as a pop-up before the member leaves the form.
+
+| # | Condition | Outcome |
+|---|---|---|
+| 1 | Serving notice on the leave's start date | LWP |
+| 2 | Paid leave starting on or before probation end | LWP |
+| 3 | Half day raised < 24h before its **leaving time** (default 2 PM) | LWP |
+| 4 | Sick leave raised after 9:30 AM | LWP |
+| 5 | Privilege leave (not a half day) starting < 5 calendar days out | LWP |
+| 6 | Optional holiday starting < 5 calendar days out | LWP |
+
+A half day is deliberately exempt from rule 5 — it answers to rule 3 only. Work From
+Home and an explicit Leave Without Pay request skip the whole ladder.
+
+**Hard rejections** (400, the request is never created): WFH inside 24 hours;
+bereavement over 3 days; sick leave for any date other than today; sick leave filed
+before 5:30 AM (office start 10:30 − 5h); an optional holiday that is not a listed
+optional holiday, or beyond the 2/FY cap.
+
+### 20.6 Deduction
+
+Comp-off → the leave's own pool → advance (full-time, 5 days, opt-in) → LWP. Sick leave
+is a same-day event, so it draws on the Sick pool and then LWP: neither comp-off nor the
+advance facility applies to it. An intern's sick leave draws on the shared Privilege pool.
+
+Admin may approve a request **as a different leave type**, which is how a leave the
+policy pushed to LWP is granted as paid leave anyway.
+
+### 20.7 Salary
+
+A fixed **30-day month**: per-day rate = monthly salary ÷ 30. Days not worked are
+deducted at that rate and the rest is paid. `workingDaysInMonth` remains for the
+leaderboard and for display, not for pay.
+
+### 20.8 Task scheduling
+
+- A member's planned windows on one date **may not overlap**. Windows are half-open, so
+  a task may start exactly when the previous one ends (10–11 and 11–12 are both fine).
+- Order is manual (`sortOrder`) and never changes on its own — starting or completing a
+  task leaves it where it is.
+- A task planned for an earlier day that is not done is **carried over**: it stays on
+  today's list, flagged, until it is closed out, and keeps the day it was committed to
+  in the member's history.
