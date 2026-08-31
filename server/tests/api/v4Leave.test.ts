@@ -278,6 +278,45 @@ describe.skipIf(!RUN)('v4 — leave policy', () => {
       );
     });
 
+    it('rebases every accrual onto the v4 entitlement model, keeping what was taken', async () => {
+      // Simulate a ledger written under the old model: a stale 18-PL opening plus a real deduction.
+      const stale = await prisma.leaveLedger.create({
+        data: {
+          userId: internId,
+          effectiveDate: d('2026-06-01'),
+          entryType: 'opening',
+          leaveType: 'pl',
+          amount: 18,
+          balanceAfter: 18,
+          note: 'legacy opening under the old model',
+        },
+      });
+      const deduction = await prisma.leaveLedger.create({
+        data: {
+          userId: internId,
+          effectiveDate: d('2026-07-06'),
+          entryType: 'deduction',
+          leaveType: 'pl',
+          amount: -1,
+          balanceAfter: 17,
+          note: 'Leave taken',
+        },
+      });
+
+      const res = await request(app)
+        .post('/api/v1/internal/jobs/rebase-accrual')
+        .set({ Authorization: `Bearer ${process.env.JOB_SECRET}` });
+      expect(res.status).toBe(200);
+
+      expect(await prisma.leaveLedger.findUnique({ where: { id: stale.id } })).toBeNull();
+      // What the member actually took survives untouched.
+      expect(await prisma.leaveLedger.findUnique({ where: { id: deduction.id } })).not.toBeNull();
+
+      // The intern is back on the v4 model: +1 a month to a cap of 4, minus the day taken.
+      const balances = await request(app).get(`/api/v1/leave/balances/${internId}`).set(auth(internT));
+      expect(balances.body.privilege).toEqual({ total: 4, remaining: 3 });
+    });
+
     it('reverses the notice month’s credit when notice started on or before the 15th', async () => {
       const res = await request(app)
         .post('/api/v1/internal/jobs/monthly-accrual')

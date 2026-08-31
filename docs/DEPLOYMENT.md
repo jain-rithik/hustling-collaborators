@@ -62,6 +62,25 @@ leave accrual — all idempotent). Add two repo **secrets**:
 
 (Alternatively use Render Cron Jobs hitting the same `/api/v1/internal/jobs/*` endpoints.)
 
+Until these two secrets are set the workflow skips itself with a warning instead of failing —
+but **no leave accrues**, because `monthly-accrual` is what posts each month's credit.
+
+### One-time after the v4 leave change
+
+Ledgers written before v4 hold the old 18-combined-Paid-Leave credits, so they need rebuilding
+on the new model (11 Privilege + 7 Sick, earned prorata). Run once, from anywhere with the
+`JOB_SECRET`:
+
+```bash
+curl -fsS -X POST "$API_URL/api/v1/internal/jobs/rebase-accrual" \
+  -H "Authorization: Bearer $JOB_SECRET"
+```
+
+It clears only the entries the system generates (opening / accrual / expiry / clawback) and
+re-posts them from the current schedule. **Leave people have actually taken, and any manual
+Admin adjustment, are left untouched.** Running it twice is harmless. It is deliberately not
+on the cron — an Admin runs it on purpose.
+
 ## 5. Custom domain (optional)
 
 Point a domain at Vercel (web) and, if desired, a subdomain at Render (API). Update
