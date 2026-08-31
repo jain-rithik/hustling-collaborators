@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Card, EmptyState, Pill, Section, Spinner } from '@/components/ui';
 import { IconChevronLeft } from '@/components/Icons';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, istToday } from '@/lib/format';
 
 interface Holiday {
   id: string;
@@ -38,7 +38,7 @@ export function HolidayCalendar() {
   const q = useQuery({ queryKey: ['holidays'], queryFn: () => api.get<{ holidays: Holiday[] }>('/holidays') });
 
   const holidays = q.data?.holidays ?? [];
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = istToday();
   const months = groupByMonth(holidays);
 
   return (

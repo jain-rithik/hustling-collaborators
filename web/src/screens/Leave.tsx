@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 import { Button, Card, EmptyState, Pill, Section, Spinner } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { IconChevronLeft, IconPlus } from '@/components/Icons';
-import { fmtClock, fmtDate } from '@/lib/format';
+import { fmtClock, fmtDate, istToday } from '@/lib/format';
 import { useAuth } from '@/store/auth';
 
 interface LeaveRequest {
@@ -155,7 +155,7 @@ function RequestModal({ open, onClose }: { open: boolean; onClose: () => void })
   const [err, setErr] = useState('');
   const [notices, setNotices] = useState<string[]>([]);
 
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = istToday();
 
   // Entitlements for the counters and the standing banners. Keyed under 'leave' so raising or
   // cancelling a request refreshes the remaining counts along with the list.

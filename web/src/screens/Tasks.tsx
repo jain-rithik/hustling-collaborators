@@ -10,9 +10,8 @@ import { Modal } from '@/components/Modal';
 import { TimePicker } from '@/components/TimePicker';
 import { IconPlus } from '@/components/Icons';
 import type { CampaignDto } from '@/components/CampaignCard';
-import { fmtDate, minutesBetween, minutesToHuman } from '@/lib/format';
+import { fmtDate, istToday, minutesBetween, minutesToHuman } from '@/lib/format';
 
-const clientToday = () => new Date().toLocaleDateString('en-CA');
 const NEW_CAMPAIGN = '__new__';
 
 /** The Mon–Sat working week (Sunday is off) containing the given day. */
@@ -40,7 +39,7 @@ interface HistoryDay {
 export function Tasks() {
   const qc = useQueryClient();
   const meme = useToasts((s) => s.meme);
-  const today = clientToday();
+  const today = istToday();
   const [open, setOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [delayFor, setDelayFor] = useState<TaskDto | null>(null);

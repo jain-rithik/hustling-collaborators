@@ -5,7 +5,7 @@ import { EMPLOYMENT_TYPES, GENDER_LABELS, type Gender } from '@hc/shared';
 import { api } from '@/lib/api';
 import { Card, Pill, Spinner } from '@/components/ui';
 import { IconChevronLeft } from '@/components/Icons';
-import { fmtClock, fmtDate } from '@/lib/format';
+import { fmtClock, fmtDate, istToday } from '@/lib/format';
 import type { TaskDto } from '@/components/TaskCard';
 
 interface MemberProfile {
@@ -33,7 +33,6 @@ interface HistoryDay {
   tasks: TaskDto[];
 }
 
-const clientToday = () => new Date().toLocaleDateString('en-CA');
 
 const EMPLOYMENT_LABELS: Record<(typeof EMPLOYMENT_TYPES)[number], string> = {
   intern: 'Internship',
@@ -47,7 +46,7 @@ const EMPLOYMENT_LABELS: Record<(typeof EMPLOYMENT_TYPES)[number], string> = {
 export function AdminMember() {
   const { userId = '' } = useParams();
   const navigate = useNavigate();
-  const today = clientToday();
+  const today = istToday();
   const [openDate, setOpenDate] = useState<string | null>(null);
 
   const profileQ = useQuery({

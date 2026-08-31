@@ -64,3 +64,14 @@ BEGIN
   END IF;
 END
 $$;
+
+-- ── Backfill probation end dates ────────────────────────────────────────────
+-- Probation now gates paid leave, so a profile without an end date would skip it
+-- entirely. Derive it the same way the app does: whole months from the joining
+-- month — 3 for full-time, 2 for an intern.
+UPDATE "employee_profiles"
+SET "probation_end_date" =
+  (date_trunc('month', "joining_date")
+   + (CASE WHEN "employment_type" = 'full_time' THEN INTERVAL '3 months' ELSE INTERVAL '2 months' END)
+   - INTERVAL '1 day')::date
+WHERE "probation_end_date" IS NULL;

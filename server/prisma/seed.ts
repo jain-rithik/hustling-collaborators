@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { BCRYPT_COST, type EmploymentType, type UserRole } from '@hc/shared';
-import { monthlyAccrualSchedule } from '../src/domain/leaveAccrual.js';
+import { monthlyAccrualSchedule, probationEndDate } from '../src/domain/leaveAccrual.js';
 
 const prisma = new PrismaClient();
 
@@ -209,6 +209,8 @@ async function seedPeople() {
         employeeCode: p.code,
         employmentType: p.type,
         joiningDate: asDate(p.joining),
+        // Probation gates paid leave, so it must never be left unset (v4 change log).
+        probationEndDate: asDate(probationEndDate(p.joining, p.type)),
         dateOfBirth: asDate(p.dob),
         designation: p.designation,
         department: 'Marketing',
@@ -220,6 +222,8 @@ async function seedPeople() {
         employeeCode: p.code,
         employmentType: p.type,
         joiningDate: asDate(p.joining),
+        // Probation gates paid leave, so it must never be left unset (v4 change log).
+        probationEndDate: asDate(probationEndDate(p.joining, p.type)),
         dateOfBirth: asDate(p.dob),
         designation: p.designation,
         department: 'Marketing',

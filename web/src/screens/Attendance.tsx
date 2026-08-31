@@ -7,10 +7,9 @@ import { Card, Pill, Section, Spinner } from '@/components/ui';
 import { Modal } from '@/components/Modal';
 import { DayChip, type DayInfo } from '@/components/DayChip';
 import { IconChevronLeft } from '@/components/Icons';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, istToday } from '@/lib/format';
 
-const clientToday = () => new Date().toLocaleDateString('en-CA');
-const thisMonth = () => clientToday().slice(0, 7);
+const thisMonth = () => istToday().slice(0, 7);
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 const HOLIDAY_TYPE_LABEL: Record<string, string> = {
@@ -66,7 +65,7 @@ export function Attendance() {
   const mandatoryHolidays = monthHolidays.filter((h) => h.type === 'mandatory_holiday');
   const optionalHolidays = monthHolidays.filter((h) => h.type === 'optional_holiday');
 
-  const todayMd = clientToday().slice(5); // 'MM-DD'
+  const todayMd = istToday().slice(5); // 'MM-DD'
   const birthdays = (birthdaysQ.data?.birthdays ?? [])
     .filter((b) => b.dateOfBirth.slice(5, 7) === ym.slice(5, 7))
     .sort((a, b) => Number(a.dateOfBirth.slice(8, 10)) - Number(b.dateOfBirth.slice(8, 10)));
@@ -119,7 +118,7 @@ export function Attendance() {
                 <div key={`b${i}`} />
               ))}
               {days.map((d) => (
-                <DayChip key={d.day} d={d} isToday={d.day === clientToday()} onSelect={setSelectedHoliday} />
+                <DayChip key={d.day} d={d} isToday={d.day === istToday()} onSelect={setSelectedHoliday} />
               ))}
             </div>
           )}
