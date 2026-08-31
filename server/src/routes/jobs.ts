@@ -24,6 +24,9 @@ jobsRouter.post(
         return void res.json(await campaignService.flagOverdue());
       case 'monthly-accrual':
         return void res.json(await jobService.runAccrual());
+      // One-time, Admin-triggered: rebuild every accrual entry on the v4 entitlement model.
+      case 'rebase-accrual':
+        return void res.json(await jobService.rebaseAccrual());
       case 'nightly-leaderboard':
         return void res.json(await leaderboardService.writeSnapshots(istToday().slice(0, 7)));
       case 'break-sweep':

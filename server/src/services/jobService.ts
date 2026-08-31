@@ -76,6 +76,27 @@ export const jobService = {
     }
     return { posted };
   },
+
+  /**
+   * One-time rebase after the v4 entitlement change (18 combined Paid Leaves → 11 Privilege +
+   * 7 Sick, earned prorata). Ledgers written under the old model still hold the old credits, so
+   * `runAccrual` alone would leave a mix of both.
+   *
+   * This clears only the entries the system generates — opening / accrual / expiry / clawback —
+   * and re-posts them from the current schedule. Deductions (leave actually taken) and manual
+   * Admin adjustments are never touched. Deliberately NOT part of the nightly cron: an Admin
+   * runs it once, on purpose.
+   *
+   * `balanceAfter` on the surviving deduction rows becomes historical after this — the balance
+   * itself is always the sum of amounts, so it stays correct.
+   */
+  async rebaseAccrual() {
+    const removed = await prisma.leaveLedger.deleteMany({
+      where: { entryType: { in: ['opening', 'accrual', 'expiry', 'clawback'] } },
+    });
+    const { posted } = await jobService.runAccrual();
+    return { removed: removed.count, posted };
+  },
 };
 
 /**
