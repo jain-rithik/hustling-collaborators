@@ -22,6 +22,9 @@ progress, with a founder ping when a teammate finishes all their tasks). Built f
 run on **free-tier infrastructure** (target ₹0–500/month). Every feature is framed as _"what
 does this tell **me** about **my** day"_ — positive-first, never punitive.
 
+> **Picking this up cold?** Start with [`docs/HANDOFF.md`](docs/HANDOFF.md) — current state,
+> conventions, deployment, the local test recipe and the traps this project has already hit.
+
 ## Modules
 
 | Module | What it does |
